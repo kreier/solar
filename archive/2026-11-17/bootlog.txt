@@ -1,0 +1,96 @@
+ets Jun  8 2016 00:22:57
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:1
+load:0x3fff0018,len:4
+load:0x3fff001c,len:1044
+load:0x40078000,len:8896
+load:0x40080400,len:5816
+entry 0x400806ac
+reason 1
+Reading reg b.....
+reg b: 12884901898
+ ** Voltages measured: 180  87  0  2234  Boot number: 1
+Connecting to: Hofkoh.
+WiFi connected in: 1429, IP address: 10.8.8.227
+Connecting to maker.ifttt.com
+Request resource: /trigger/solar_reading/with/key/**********************
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+Content-Length: 53
+Connection: close
+x-powered-by: Sad Unicorns
+x-robots-tag: none
+x-top-secrettt: VG9v********************************************************************************************************Lg==
+etag: W/"35-*************************+s"
+date: Tue, 17 Nov 2026 14:57:11 GMT
+X-Cache: Miss from cloudfront
+Via: 1.1 ffbf12**************************.cloudfront.net (CloudFront)
+X-Amz-Cf-Pop: SGN50-P1
+X-Amz-Cf-Id: 9n5q************************************************jA==
+X-Frame-Options: SAMEORIGIN
+Referrer-Policy: strict-origin-when-cross-origin
+Content-Security-Policy: ;
+X-Content-Type-Options: nosniff
+
+Congratulations! You've fired the solar_reading event
+closing connection
+Going to sleep now
+ets Jun  8 2016 00:22:57
+
+rst:0x5 (DEEPSLEEP_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:1
+load:0x3fff0018,len:4
+load:0x3fff001c,len:1044
+load:0x40078000,len:8896
+load:0x40080400,len:5816
+entry 0x400806ac
+reason 8
+reg b: 12884901898
+ ** Voltages measured: 187  76  0  2256  Boot number: 2
+Connecting to: Hofkoh.
+WiFi connected in: 1416, IP address: 10.8.8.227
+Connecting to maker.ifttt.com
+Request resource: /trigger/solar_reading/with/key/**********************
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+Content-Length: 53
+Connection: close
+x-powered-by: Sad Unicorns
+x-robots-tag: none
+x-top-secrettt: VG9v********************************************************************************************************Lg==
+etag: W/"35-*************************+s"
+date: Tue, 17 Nov 2026 14:59:13 GMT
+X-Cache: Miss from cloudfront
+Via: 1.1 c35f19**************************.cloudfront.net (CloudFront)
+X-Amz-Cf-Pop: SGN50-P1
+X-Amz-Cf-Id: oGJS************************************************Eg==
+X-Frame-Options: SAMEORIGIN
+Referrer-Policy: strict-origin-when-cross-origin
+Content-Security-Policy: ;
+X-Content-Type-Options: nosniff
+
+Congratulations! You've fired the solar_reading event
+closing connection
+Going to sleep now
+
+reg b: 12884901898
+ ** Voltages measured: 192  114  0  2259  Boot number: 3
+Connecting to: Hofkoh.
+WiFi connected in: 1370, IP address: 10.8.8.227
+
+ ** Voltages measured: 199  73  0  2273  Boot number: 4
+Connecting to: Hofkoh.
+WiFi connected in: 1372, IP address: 10.8.8.227
+
+ ** Voltages measured: 206  90  0  2278  Boot number: 5
+Connecting to: Hofkoh.
+WiFi connected in: 1371, IP address: 10.8.8.227
+
+ ** Voltages measured: 208  74  0  2278  Boot number: 6
+Connecting to: Hofkoh.
+WiFi connected in: 1369, IP address: 10.8.8.227
