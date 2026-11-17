@@ -1,0 +1,11 @@
+# Cloudflare Worker Environment Variables for kreier/solar
+# Copy to worker/.dev.vars for local development (wrangler dev)
+
+# Master bootstrap phrase for one-time station onboarding & registration
+MASTER_PHRASE=solar-fleet-bootstrap-2026
+
+# Fleet production target version for OTA checks
+STABLE_VERSION=1.0.0
+
+# Worker Base URL
+WORKER_URL=https://solar.kreier.workers.dev
