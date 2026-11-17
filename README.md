@@ -1,10 +1,139 @@
-# solar
+# solar — ESP32 Solar, Battery & Temperature Fleet Monitor
 
-Visualize solar data from different stations, provide statistical analysis.
+Edge-native telemetry fleet monitoring for ESP32 microcontrollers measuring solar panel voltage, LiPo battery charge/discharge cycles, local ambient temperature, and execution cycle latency. Ingested at the Cloudflare edge (`solar.kreier.workers.dev`) and stored in a serverless Cloudflare D1 database.
 
-## Related repositories
+[![Build Firmware CI](https://github.com/kreier/solar/actions/workflows/build-firmware.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/build-firmware.yml)
+[![Deploy GitHub Pages](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml)
+[![Firmware](https://img.shields.io/badge/firmware-v1.0.0-blue.svg)](firmware/)
+[![ADRs](https://img.shields.io/badge/docs-ADRs%20(5)-success.svg)](docs/adr/)
 
-- [aisvn-data/solarpower](https://github.com/aisvn-data/solarpower) Some tinkering and documenting of early steps in May 2020
-- [kreier/solarmeter](https://github.com/kreier/solarmeter) Software repository for the 4 collectors of data 2020-2021
-- [aisvn-data/solardata](https://github.com/aisvn-data/solardata) Analyze, clean and display collected solar data.
-- [hviovn/solarmeter](https://github.com/hviovn/solarmeter) New updated solarmeter without the IFTTT service, but using a Cloudflare worker collect the data and store values every two minutes, and finally commit the data to the repository as a pull request to have historic data.
+---
+
+## Architecture Overview
+
+```
+                      ┌──────────────────────────────────────────────┐
+                      │             Deployed ESP32 Nodes             │
+                      │       (WEMOS LOLIN32 / ESP32 DevKit)         │
+                      └──────────────────────┬───────────────────────┘
+                                             │
+                   HTTPS Telemetry Cycle     │ Every 10 minutes
+                   Bearer Token Auth         ▼ (Light Sleep)
+                      ┌──────────────────────────────────────────────┐
+                      │          Cloudflare Worker (Edge)            │
+                      │          solar.kreier.workers.dev            │
+                      ├──────────────────────┬───────────────────────┤
+                      │  Telemetry Ingestion │  Streaming OTA Proxy  │
+                      │  Token Verification  │  Web Dashboard SSR    │
+                      └──────────┬───────────┴──────────┬────────────┘
+                                 │                      │
+             Indexed SQL Queries │                      │ Releases Fallback
+                                 ▼                      ▼
+                      ┌──────────────────────┐   ┌───────────────────┐
+                      │    Cloudflare D1     │   │  GitHub Releases  │
+                      │       solar-db       │   │  (Firmware Bin)   │
+                      └──────────────────────┘   └───────────────────┘
+                                                        ▲
+                                                        │ Automated Static Mirror
+                                                 ┌──────┴────────────┐
+                                                 │   GitHub Pages    │
+                                                 │ kreier.github.io  │
+                                                 └───────────────────┘
+```
+
+- **Live Edge Web App**: [solar.kreier.workers.dev](https://solar.kreier.workers.dev)
+- **Static GitHub Pages Mirror**: [kreier.github.io/solar](https://kreier.github.io/solar)
+
+---
+
+## Key Features
+
+1. **Precision ADC Nonlinearity Compensation**:
+   - 100x multisampling on pins 32, 34, 35.
+   - Hardware-calibrated piecewise linear conversions accounting for resistor dividers and ESP32 ADC deadbands.
+2. **Cycle Timing Benchmarks**:
+   - Measures time from boot, measuring, Wi-Fi association, DHCP IP acquisition, TLS handshake & upload, to HTTP 200 confirmation.
+   - Retained in RTC fast memory and automatically delivered in the payload for the **next cycle**.
+3. **Power-Optimized Light Sleep Cadence**:
+   - Runs every 10 minutes, powers down the Wi-Fi radio, and enters ultra-low-power light sleep.
+4. **Zero-Trust Onboarding**:
+   - Initial registration using station ID, location, and `MASTER_PHRASE`.
+   - Exchanged for a unique UUID `device_token`; `MASTER_PHRASE` is immediately purged from NVS.
+5. **Minimal SPIFFS & Dual OTA Ready**:
+   - Dual 1.9 MB application slots (`app0` / `app1`) and 190 KB SPIFFS partition table (`min_spiffs.csv`).
+   - Seamless Over-The-Air firmware updates delivered via Cloudflare Worker.
+6. **Multi-Day 0:00 to 24:00 Web Dashboard**:
+   - Daily comparison overlays for the last 3 days showing diurnal curves for solar power, battery charging, and temperature.
+   - Continuous 72-hour timeline and stacked execution latency benchmarks.
+
+---
+
+## Hardware Pinout & ADC Calibration
+
+| Pin | Channel | Sensor / Circuit | Divider Ratio | Calibration Formula | Physical Unit |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Pin 32** | ADC1_CH4 | Local Temperature | 1:1 | `voltage[0] = int(voltage[0] * 0.83 + 155)` | `mV / 10 = °C` |
+| **Pin 34** | ADC1_CH6 | Solar Panel Voltage | 1kΩ : 1kΩ (2:1) | `voltage[2] = int(voltage[2] * 1.64 + 315)` *(0 if 315)* | `mV / 1000 = V` |
+| **Pin 35** | ADC1_CH7 | LiPo Battery Voltage | 10kΩ : 10kΩ (2:1) | `voltage[3] = int(voltage[3] * 1.65 + 307)` | `mV / 1000 = V` |
+
+---
+
+## Firmware Compilation & Flashing
+
+### Using PlatformIO (Recommended)
+```bash
+cd firmware
+pio run -t upload
+pio device monitor
+```
+
+### Using Arduino IDE
+1. Open `firmware/solar/solar.ino`.
+2. Select **Board**: `ESP32 Dev Module` (or `WEMOS LOLIN32`).
+3. Select **Partition Scheme**: `Minimal SPIFFS (1.9MB APP with OTA/190KB SPIFFS)` or configure `partitions/min_spiffs.csv`.
+4. Install `ArduinoJson` (v7+) via the Library Manager.
+5. Compile and upload.
+
+---
+
+## Cloudflare Worker & D1 Setup
+
+### 1. Initialize Cloudflare D1 Database
+```bash
+cd worker
+npm install
+npx wrangler d1 create solar-db
+npx wrangler d1 execute solar-db --file=migrations/0001_initial_schema.sql
+```
+
+### 2. Configure Secrets
+```bash
+npx wrangler secret put MASTER_PHRASE
+```
+
+### 3. Deploy Worker
+```bash
+npx wrangler deploy
+```
+
+---
+
+## Repository Architecture & ADRs
+
+This repository is maintained with agentic AI workflows. Detailed architectural decisions are documented in [`docs/adr`](docs/adr/):
+
+- [`AGENTS.md`](AGENTS.md): Operational guide for AI coding assistants.
+- [`CHANGELOG.md`](CHANGELOG.md): SemVer release history.
+- [ADR 0001](docs/adr/0001-cloudflare-d1-edge-storage.md): Cloudflare D1 Serverless Storage over Git Commits.
+- [ADR 0002](docs/adr/0002-zero-trust-bootstrap-provisioning.md): Zero-Trust Per-Device Token Provisioning via Bootstrap Secret.
+- [ADR 0003](docs/adr/0003-esp32-adc-nonlinearity-calibration.md): ESP32 ADC Calibration & 100x Multisampling.
+- [ADR 0004](docs/adr/0004-light-sleep-cadence-and-cycle-benchmarking.md): 10-Minute Light Sleep & Cycle Benchmarking.
+- [ADR 0005](docs/adr/0005-minimal-spiffs-and-dual-ota-partitioning.md): Minimal SPIFFS & Dual OTA Application Slots.
+
+---
+
+## Related Repositories
+
+- [kreier/wifi](https://github.com/kreier/wifi): Fleet Wi-Fi spectrum and network quality monitoring node.
+- [kreier/solarmeter](https://github.com/kreier/solarmeter): Legacy solar monitoring collectors (2020–2021).
+- [aisvn-data/solardata](https://github.com/aisvn-data/solardata): Historical solar analysis and visualization.

@@ -216,3 +216,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# PlatformIO
+.pio
+.pioenvs
+.piolibdeps
+
+# Node / Cloudflare Workers
+node_modules/
+.wrangler/
+dist/
+.dev.vars
+
+# Local config
+*.local

@@ -1,0 +1,16 @@
+name = "solar"
+main = "src/index.ts"
+compatibility_date = "2024-04-01"
+
+[vars]
+STABLE_VERSION = "1.0.0"
+WORKER_URL = "https://solar.kreier.workers.dev"
+
+# Cloudflare D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "solar-db"
+database_id = "placeholder-solar-db-id"
+
+# Secrets required in production:
+# wrangler secret put MASTER_PHRASE
