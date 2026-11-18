@@ -1,6 +1,6 @@
 {
   "name": "Solar Telemetry Fleet (Update Only)",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "funding_url": "https://github.com/kreier/solar",
   "new_install_prompt_erase": false,
   "builds": [

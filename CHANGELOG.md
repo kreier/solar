@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-11-18
+
+### Added
+- **Soft-AP Connection Stability & Auto-Reboot**:
+  - Automatically pauses configuration timeout while any client device is connected (`WiFi.softAPgetStationNum() > 0`), ensuring users are never disconnected while filling out configuration forms.
+  - Automatically reboots ESP32 node 1 second after submitting configuration via the `/save` endpoint.
+  - Password-protected Soft-AP Wi-Fi network (`12345678`), clearly printed to the serial interface at boot.
+- **Web UI Station Header & Telemetry Firmware Tracking**:
+  - Prominently displays the active station firmware version in the header subtitle badge alongside Station Name and Location.
+  - Telemetry payload includes `firmware_version` (`FIRMWARE_VERSION="1.0.2"`), stored in D1 database and reflected in edge API responses.
+- **Daily Automatic OTA Firmware Check**:
+  - Firmware executes an automatic check for newer releases once per day (every 144 cycles / 24 hours, plus on cycle #1).
+  - Added serial command `OTA` to trigger an immediate Over-The-Air update check on demand.
+- **Version Bump**:
+  - Updated firmware, web dashboards, and Web Serial flasher manifests to v1.0.2.
+
 ## [1.0.1] - 2026-11-18
 
 ### Added

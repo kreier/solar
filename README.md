@@ -4,7 +4,7 @@ Edge-native telemetry fleet monitoring for ESP32 microcontrollers measuring sola
 
 [![Build Firmware CI](https://github.com/kreier/solar/actions/workflows/build-firmware.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/build-firmware.yml)
 [![Deploy GitHub Pages](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml)
-[![Firmware](https://img.shields.io/badge/firmware-v1.0.1-blue.svg)](firmware/)
+[![Firmware](https://img.shields.io/badge/firmware-v1.0.2-blue.svg)](firmware/)
 [![ADRs](https://img.shields.io/badge/docs-ADRs%20(5)-success.svg)](docs/adr/)
 
 ---
@@ -58,12 +58,17 @@ Edge-native telemetry fleet monitoring for ESP32 microcontrollers measuring sola
    - Runs every 10 minutes, powers down the Wi-Fi radio, and enters ultra-low-power light sleep.
 4. **Zero-Trust Onboarding & Soft-AP Configuration**:
    - Double reset detection (2-second window) enables Soft-AP mode (`Solar-Setup` at `192.168.4.1`) for boards without a boot button (e.g. WEMOS LOLIN32).
-   - 120-second configuration portal displays live ADC readings and configures Station ID, Location, Wi-Fi credentials, `MASTER_PHRASE`, worker URL, and customizable Pin Framework (`pin_temp`, `pin_solar`, `pin_lipo`).
+   - Password-protected Wi-Fi AP (`12345678`), displayed directly on the serial interface at boot.
+   - Smart client timeout: 120-second timer automatically pauses when a client connects, preventing accidental disconnection while entering data.
+   - Automatic restart: ESP32 automatically saves settings to NVS and reboots upon form submission.
+   - Configuration portal displays live ADC readings and configures Station ID, Location, Wi-Fi credentials, `MASTER_PHRASE`, worker URL, and customizable Pin Framework (`pin_temp`, `pin_solar`, `pin_lipo`).
    - Initial registration exchanges `MASTER_PHRASE` for a unique UUID `device_token`; `MASTER_PHRASE` is immediately purged from NVS.
-5. **Standard OTA & Core Dump Partition Scheme**:
+5. **Standard OTA, Daily Auto-Check & Core Dump Scheme**:
    - Standard 4MB dual OTA partition scheme (`partitions/default.csv`) with two 1.28 MB application slots (`app0` / `app1`), 1.4 MB SPIFFS, and a dedicated 64 KB `coredump` partition (`esp_core_dump_flash` supported).
+   - Automatic daily OTA update check (every 144 cycles / 24 hours, plus on boot cycle #1) and serial command `OTA`.
    - Seamless Over-The-Air firmware updates delivered via Cloudflare Worker.
 6. **Multi-Day 0:00 to 24:00 Web Dashboard**:
+   - Dynamic header displaying Station Name, Location, and running Firmware Version (`v1.0.2`).
    - Daily comparison overlays for the last 3 days showing diurnal curves for solar power, battery charging, and temperature.
    - Continuous 72-hour timeline and stacked execution latency benchmarks.
 7. **Web Serial Firmware Installer**:

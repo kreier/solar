@@ -5,7 +5,7 @@ account_id = "545c9b44c3df46e24d2ae837aebfa7b6"
 workers_dev = true
 
 [vars]
-STABLE_VERSION = "1.0.1"
+STABLE_VERSION = "1.0.2"
 WORKER_URL = "https://solar.kreier.workers.dev"
 
 # Cloudflare D1 Database Binding

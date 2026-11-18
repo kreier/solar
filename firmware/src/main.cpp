@@ -148,6 +148,9 @@ void checkSerialConfiguration() {
         } else if (line.equalsIgnoreCase("PORTAL")) {
             Serial.println(F("[Config] Launching Soft-AP configuration portal via serial command..."));
             PortalManager::runPortal(config, configMgr, adc, 120);
+        } else if (line.equalsIgnoreCase("OTA")) {
+            Serial.println(F("[OTA] Manual OTA update check requested via serial..."));
+            OtaManager::checkForUpdate(config.worker_url, config.station_id, FIRMWARE_VERSION);
         } else if (line.equalsIgnoreCase("STATUS")) {
             Serial.printf("[Status] Station: %s, Location: %s, HasToken: %d, SSID: %s\n",
                           config.station_id, config.location, configMgr.hasDeviceToken(), config.wifi_ssid);
@@ -216,8 +219,9 @@ void runCycle() {
             String token = configMgr.getDeviceToken();
             ApiClient::uploadTelemetry(config.worker_url, token, config, readings, timer);
 
-            // 5. Check for OTA update periodically (e.g. every 6 cycles = ~1 hour)
-            if ((timer.getBootCount() % 6) == 1) {
+            // 5. Daily automatic check for a newer firmware version (every 144 cycles = ~24 hours, plus 1st cycle)
+            if ((timer.getBootCount() % 144) == 1) {
+                Serial.println(F("[OTA] Checking for daily firmware update..."));
                 OtaManager::checkForUpdate(config.worker_url, config.station_id, FIRMWARE_VERSION);
             }
         } else {

@@ -174,10 +174,13 @@ To avoid circular timing dependencies, the complete benchmark of the **preceding
 For headless boards lacking physical boot buttons (e.g., WEMOS LOLIN32):
 - **Double Reset Detection**: Pressing the physical EN/RST button twice within 2.0 seconds (tracked via `RTC_DATA_ATTR uint32_t rtc_drd_magic`) enters AP configuration mode. It is also entered automatically if no Wi-Fi credentials exist.
 - **Access Point**: Broadcasts `Solar-Setup` (or `Solar-<station_id>`) with IP `192.168.4.1`.
+- **Soft-AP Password**: Protected by default password `12345678` (printed clearly on the Serial console at boot).
+- **Client-Aware Timeout**: 120-second active countdown pauses automatically when a client is connected (`WiFi.softAPgetStationNum() > 0`), ensuring users are never disconnected while entering configuration.
+- **Submit & Reboot**: Upon submitting `/save`, the ESP32 writes configuration to NVS, presents a confirmation response, and reboots after 1.0 second.
 - **Portal Features**:
   - Live ADC sensor telemetry preview (Temperature, Solar Voltage, LiPo Voltage, raw counts).
-  - 120-second active countdown before auto-reboot.
   - Configuration form: Station ID, Location, Primary & Backup Wi-Fi credentials, `MASTER_PHRASE`, Worker URL, and dynamic Pin Framework (`pin_temp`, `pin_solar`, `pin_lipo`).
+- **Daily OTA Update Checks**: Station performs a daily automatic OTA check against the Cloudflare edge worker (every 144 cycles / 24 hours, plus on boot cycle #1) or via the `OTA` serial command.
 
 ### Provisioning Protocol
 1. **Bootstrap Phase**:
