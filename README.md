@@ -4,7 +4,7 @@ Edge-native telemetry fleet monitoring for ESP32 microcontrollers measuring sola
 
 [![Build Firmware CI](https://github.com/kreier/solar/actions/workflows/build-firmware.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/build-firmware.yml)
 [![Deploy GitHub Pages](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml)
-[![Firmware](https://img.shields.io/badge/firmware-v1.0.0-blue.svg)](firmware/)
+[![Firmware](https://img.shields.io/badge/firmware-v1.0.1-blue.svg)](firmware/)
 [![ADRs](https://img.shields.io/badge/docs-ADRs%20(5)-success.svg)](docs/adr/)
 
 ---
@@ -56,11 +56,12 @@ Edge-native telemetry fleet monitoring for ESP32 microcontrollers measuring sola
    - Retained in RTC fast memory and automatically delivered in the payload for the **next cycle**.
 3. **Power-Optimized Light Sleep Cadence**:
    - Runs every 10 minutes, powers down the Wi-Fi radio, and enters ultra-low-power light sleep.
-4. **Zero-Trust Onboarding**:
-   - Initial registration using station ID, location, and `MASTER_PHRASE`.
-   - Exchanged for a unique UUID `device_token`; `MASTER_PHRASE` is immediately purged from NVS.
-5. **Minimal SPIFFS & Dual OTA Ready**:
-   - Dual 1.9 MB application slots (`app0` / `app1`) and 190 KB SPIFFS partition table (`min_spiffs.csv`).
+4. **Zero-Trust Onboarding & Soft-AP Configuration**:
+   - Double reset detection (2-second window) enables Soft-AP mode (`Solar-Setup` at `192.168.4.1`) for boards without a boot button (e.g. WEMOS LOLIN32).
+   - 120-second configuration portal displays live ADC readings and configures Station ID, Location, Wi-Fi credentials, `MASTER_PHRASE`, worker URL, and customizable Pin Framework (`pin_temp`, `pin_solar`, `pin_lipo`).
+   - Initial registration exchanges `MASTER_PHRASE` for a unique UUID `device_token`; `MASTER_PHRASE` is immediately purged from NVS.
+5. **Standard OTA & Core Dump Partition Scheme**:
+   - Standard 4MB dual OTA partition scheme (`partitions/default.csv`) with two 1.28 MB application slots (`app0` / `app1`), 1.4 MB SPIFFS, and a dedicated 64 KB `coredump` partition (`esp_core_dump_flash` supported).
    - Seamless Over-The-Air firmware updates delivered via Cloudflare Worker.
 6. **Multi-Day 0:00 to 24:00 Web Dashboard**:
    - Daily comparison overlays for the last 3 days showing diurnal curves for solar power, battery charging, and temperature.

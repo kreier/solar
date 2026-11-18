@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-11-18
+
+### Added
+- **Double Reset Detection (Soft-AP Configuration)**:
+  - Added double reset button detection within a 2-second window using RTC memory (`DoubleResetDetector`), allowing LOLIN32 boards lacking a dedicated boot button to trigger configuration mode.
+  - Added Soft-AP setup portal on `192.168.4.1` with a 120-second countdown timer.
+  - Interactive setup UI with live ADC readings for local temperature, solar panel voltage, and LiPo battery voltage.
+  - Web form for configuring Station Name, Location, primary & backup Wi-Fi credentials, `MASTER_PHRASE`, worker URL, and hardware pins framework (`pin_temp`, `pin_solar`, `pin_lipo`).
+- **Standard OTA & Core Dump Partition Table**:
+  - Replaced `min_spiffs.csv` with standard ESP32 dual OTA partition layout (`partitions/default.csv`) containing an explicit `coredump` partition (`0x10000` / 64KB at `0x3F0000`).
+  - Completely resolves `E (434) esp_core_dump_flash: No core dump partition found!`.
+- **Cloudflare Account Migration & Verification**:
+  - Bound and migrated `solar-db` to primary `kreier` Cloudflare account (`545c9b44c3df46e24d2ae837aebfa7b6`).
+  - Deployed worker to `https://solar.kreier.workers.dev` and verified live D1 ingestion with `MASTER_PHRASE`.
+  - Updated Web Serial installer manifests and pre-built binaries to v1.0.1.
+
 ## [1.0.0] - 2026-11-18
 
 ### Added

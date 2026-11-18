@@ -65,12 +65,15 @@ kreier/solar/
 ├── firmware/
 │   ├── platformio.ini             # Unified PlatformIO build configuration
 │   ├── partitions/
+│   │   ├── default.csv            # Standard ESP32 4MB: 1.28MB app0/app1, 1.4MB SPIFFS, 64KB coredump
 │   │   └── min_spiffs.csv         # ESP32 4MB Flash: 1.9MB app0/app1, 192KB SPIFFS
 │   ├── include/
 │   │   ├── adc_reader.h           # 100x multisample & ADC nonlinearity formulas
 │   │   ├── cycle_timer.h          # Startup, measure, wifi, ip, upload, http 200 benchmark
 │   │   ├── app_config.h           # NVS Preferences & Zero-Trust credential management
 │   │   ├── api_client.h           # Registration via MASTER_PHRASE & Bearer upload
+│   │   ├── double_reset.h         # Double reset button detection in RTC memory
+│   │   ├── portal_manager.h       # Soft-AP captive setup web portal (192.168.4.1)
 │   │   ├── ota_manager.h          # Dual-partition OTA check & HTTPUpdate flashing
 │   │   └── sleep_manager.h        # 10-minute light sleep with radio power-down
 │   ├── src/
@@ -165,8 +168,18 @@ To avoid circular timing dependencies, the complete benchmark of the **preceding
 
 ---
 
-## 5. Zero-Trust Provisioning Protocol
+## 5. Zero-Trust Provisioning & Soft-AP Configuration
 
+### Soft-AP Web Configuration Portal
+For headless boards lacking physical boot buttons (e.g., WEMOS LOLIN32):
+- **Double Reset Detection**: Pressing the physical EN/RST button twice within 2.0 seconds (tracked via `RTC_DATA_ATTR uint32_t rtc_drd_magic`) enters AP configuration mode. It is also entered automatically if no Wi-Fi credentials exist.
+- **Access Point**: Broadcasts `Solar-Setup` (or `Solar-<station_id>`) with IP `192.168.4.1`.
+- **Portal Features**:
+  - Live ADC sensor telemetry preview (Temperature, Solar Voltage, LiPo Voltage, raw counts).
+  - 120-second active countdown before auto-reboot.
+  - Configuration form: Station ID, Location, Primary & Backup Wi-Fi credentials, `MASTER_PHRASE`, Worker URL, and dynamic Pin Framework (`pin_temp`, `pin_solar`, `pin_lipo`).
+
+### Provisioning Protocol
 1. **Bootstrap Phase**:
    - The ESP32 boots without a device token in NVS.
    - It issues `POST https://solar.kreier.workers.dev/api/register` with `{ "station_id": "phumy2", "location": "District 7, HCMC", "bootstrap_secret": "<MASTER_PHRASE>" }`.

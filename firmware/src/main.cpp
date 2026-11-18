@@ -6,6 +6,8 @@
 #include "api_client.h"
 #include "ota_manager.h"
 #include "sleep_manager.h"
+#include "double_reset.h"
+#include "portal_manager.h"
 
 // Define RTC memory variables
 RTC_DATA_ATTR CycleBenchmark rtc_prev_cycle = {0, 0, 0, 0, 0, 0, 0, false};
@@ -15,6 +17,7 @@ AdcReader adc;
 AppConfigManager configMgr;
 SolarConfig config;
 CycleTimer timer;
+DoubleResetDetector drd(2000); // 2-second double reset window
 
 // Forward declarations
 bool connectToWiFi();
@@ -22,7 +25,7 @@ void checkSerialConfiguration();
 
 void setup() {
     Serial.begin(115200);
-    delay(500);
+    delay(300);
 
     Serial.println();
     Serial.println(F("=================================================="));
@@ -32,10 +35,17 @@ void setup() {
     adc.begin();
     configMgr.loadConfig(config);
 
-    // If WiFi credentials are missing or default, allow serial setup check
-    if (!config.is_configured || strlen(config.wifi_ssid) == 0) {
-        Serial.println(F("[Config] Notice: WiFi not configured."));
-        Serial.println(F("[Config] Send 'SET SSID=your_ssid PASS=your_pass' via serial to configure."));
+    // 1. Check for Double Reset (reset button pressed twice within 2 seconds)
+    bool isDoubleReset = drd.detect();
+
+    // 2. If double reset pressed OR Wi-Fi is completely unconfigured, launch Soft-AP Setup Portal (120s timeout)
+    if (isDoubleReset || !config.is_configured || strlen(config.wifi_ssid) == 0) {
+        if (isDoubleReset) {
+            Serial.println(F("[Boot] Double reset detected: Launching Soft-AP configuration portal..."));
+        } else {
+            Serial.println(F("[Boot] Wi-Fi not configured: Launching Soft-AP configuration portal..."));
+        }
+        PortalManager::runPortal(config, configMgr, adc, 120);
     }
 }
 
@@ -106,7 +116,6 @@ void checkSerialConfiguration() {
         String line = Serial.readStringUntil('\n');
         line.trim();
         if (line.startsWith("SET ")) {
-            // Simple parsing: SET SSID=foo PASS=bar STATION=phumy2 MASTER=secret
             int idx;
             if ((idx = line.indexOf("SSID=")) != -1) {
                 int endIdx = line.indexOf(' ', idx);
@@ -136,6 +145,9 @@ void checkSerialConfiguration() {
             config.is_configured = true;
             configMgr.saveConfig(config);
             Serial.println(F("[Config] Configuration updated and saved to NVS."));
+        } else if (line.equalsIgnoreCase("PORTAL")) {
+            Serial.println(F("[Config] Launching Soft-AP configuration portal via serial command..."));
+            PortalManager::runPortal(config, configMgr, adc, 120);
         } else if (line.equalsIgnoreCase("STATUS")) {
             Serial.printf("[Status] Station: %s, Location: %s, HasToken: %d, SSID: %s\n",
                           config.station_id, config.location, configMgr.hasDeviceToken(), config.wifi_ssid);
@@ -152,11 +164,13 @@ void runCycle() {
 
     // 1. Measure ADC sensors with 100x multisampling and nonlinearity compensation
     timer.markMeasureStart();
-    AdcReadings readings = adc.readSensors();
+    AdcReadings readings = adc.readSensors(config.pin_temp, config.pin_solar, config.pin_lipo);
     timer.markMeasureEnd();
 
-    Serial.printf("[Sensors] ADC Samples: Pin32=%d, Pin34=%d, Pin35=%d\n",
-                  readings.raw_pin32, readings.raw_pin34, readings.raw_pin35);
+    Serial.printf("[Sensors] ADC Samples: Pin%d=%d, Pin%d=%d, Pin%d=%d\n",
+                  config.pin_temp, readings.raw_pin32,
+                  config.pin_solar, readings.raw_pin34,
+                  config.pin_lipo, readings.raw_pin35);
     Serial.printf("[Sensors] Local Temp:  %.1f °C (%d mV)\n", readings.temp_c, readings.temp_mv);
     Serial.printf("[Sensors] Solar Panel: %.2f V (%d mV)\n", readings.solar_v, readings.solar_mv);
     Serial.printf("[Sensors] LiPo Battery:%.2f V (%d mV)\n", readings.lipo_v, readings.lipo_mv);
@@ -169,6 +183,9 @@ void runCycle() {
                       prev.total_cycle_ms, prev.measure_ms, prev.wifi_connect_ms,
                       prev.ip_obtain_ms, prev.upload_ms, prev.http_code);
     }
+
+    // Maintain 2-second double reset window
+    drd.loop();
 
     // Check for any serial input before connecting
     checkSerialConfiguration();
@@ -190,7 +207,7 @@ void runCycle() {
                     configMgr.eraseMasterPhrase(config); // Zero-Trust: Master phrase erased
                 }
             } else {
-                Serial.println(F("[Auth] WARNING: MASTER_PHRASE is empty. Set it via serial or NVS."));
+                Serial.println(F("[Auth] WARNING: MASTER_PHRASE is empty. Set it via portal or serial."));
             }
         }
 
@@ -209,6 +226,9 @@ void runCycle() {
     } else {
         Serial.println(F("[WiFi] Offline this cycle, skipping telemetry upload"));
     }
+
+    // Ensure reset window flag is cleared before sleep
+    drd.clear();
 
     // 6. Record this cycle's benchmark in RTC memory for the NEXT cycle's payload
     timer.finalizeAndSaveForNextCycle();

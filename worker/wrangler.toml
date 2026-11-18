@@ -1,17 +1,18 @@
 name = "solar"
 main = "src/index.ts"
 compatibility_date = "2024-04-01"
+account_id = "545c9b44c3df46e24d2ae837aebfa7b6"
 workers_dev = true
 
 [vars]
-STABLE_VERSION = "1.0.0"
+STABLE_VERSION = "1.0.1"
 WORKER_URL = "https://solar.kreier.workers.dev"
 
 # Cloudflare D1 Database Binding
 [[d1_databases]]
 binding = "DB"
 database_name = "solar-db"
-database_id = "0a88a337-1afe-4ef4-a5e2-da58d5716274"
+database_id = "f3fade3b-e945-4096-850e-afe9e11a2143"
 migrations_dir = "migrations"
 
 # Secrets required in production:

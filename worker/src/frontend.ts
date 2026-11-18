@@ -504,7 +504,7 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
 
     <footer>
       <p>ESP32 Solar Telemetry System &bull; Minimal SPIFFS & Dual OTA &bull; Cloudflare Edge & D1 Database</p>
-      <p><a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull; Firmware v<span id="fw-version">1.0.0</span> &bull; <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a></p>
+      <p><a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull; Firmware v<span id="fw-version">1.0.1</span> &bull; <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a></p>
     </footer>
   </div>
 
@@ -514,7 +514,7 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
       <div class="modal-header">
         <div class="modal-title">
           <span>⚡ ESP32 Web Firmware Installer</span>
-          <span class="badge badge-amber">v1.0.0 Stable</span>
+          <span class="badge badge-amber">v1.0.1 Stable</span>
         </div>
         <button class="modal-close-btn" onclick="closeFlashModal()" title="Close dialog">✕</button>
       </div>
@@ -1123,7 +1123,7 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
       }
 
       cachedHistory = records;
-      updateSummaryCards({ station_id: "phumy2", location: "District 7, HCMC", firmware_version: "1.0.0" }, records[records.length - 1]);
+      updateSummaryCards({ station_id: "phumy2", location: "District 7, HCMC", firmware_version: "1.0.1" }, records[records.length - 1]);
       renderOverlayChart(records, activeMetric);
       renderHistoryChart(records);
       renderTimingChart(records);

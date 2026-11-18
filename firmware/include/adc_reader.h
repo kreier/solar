@@ -4,7 +4,7 @@
 #include "soc/soc.h"
 #include "soc/sens_reg.h"
 
-// Pin definitions
+// Default Pin definitions
 #define PIN_TEMP_ADC32  32  // Temperature sensor (10 mV/°C)
 #define PIN_SOLAR_ADC34 34  // Solar panel voltage (divider 1k : 1k)
 #define PIN_LIPO_ADC35  35  // LiPo battery voltage (divider 10k : 10k)
@@ -37,14 +37,16 @@ public:
         _reg_b = READ_PERI_REG(SENS_SAR_READ_CTRL2_REG);
     }
 
-    AdcReadings readSensors() {
+    AdcReadings readSensors(uint8_t pinTemp = PIN_TEMP_ADC32,
+                            uint8_t pinSolar = PIN_SOLAR_ADC34,
+                            uint8_t pinLipo = PIN_LIPO_ADC35) {
         // Restore ADC register state after sleep
         if (_reg_b != 0) {
             WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, _reg_b);
             SET_PERI_REG_MASK(SENS_SAR_READ_CTRL2_REG, SENS_SAR2_DATA_INV);
         }
 
-        const int pins[3] = {PIN_TEMP_ADC32, PIN_SOLAR_ADC34, PIN_LIPO_ADC35};
+        const int pins[3] = {pinTemp, pinSolar, pinLipo};
         long rawSum[3] = {0, 0, 0};
 
         // Multisample 100x to reduce ADC noise (~9.5 us * 100 = ~1 ms per pin)
