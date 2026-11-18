@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Multi-day overlay chart comparing 0:00 to 24:00 diurnal curves across the last 3 days for Solar Voltage, LiPo Battery Voltage, and Temperature.
   - Continuous 72-hour chronological telemetry timeline.
   - Interactive cycle latency breakdown charts and stage benchmark indicators.
+  - In-browser Web Serial firmware installer powered by ESP Web Tools on both Cloudflare Worker and GitHub Pages.
+  - Dual flashing modes: Full Firmware with device erase (`manifest.json` flashing bootloader, partitions, boot_app0, and app), and Update Only (`manifest-update.json` preserving NVS Wi-Fi credentials and device token).
   - Responsive dark-theme dashboard served via Worker SSR and static GitHub Pages mirror.
 - **Repository & Agentic Architecture**:
   - `AGENTS.md` specifying AI agent operational guidance, architecture diagrams, and hardware protocols.

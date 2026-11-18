@@ -7,6 +7,7 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
   <title>Solar & LiPo Fleet Monitor — ESP32 Telemetry</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☀️</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
   <style>
     :root {
       --bg: #0d1117;
@@ -60,6 +61,7 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
       display: flex;
       align-items: center;
       gap: 0.75rem;
+      flex-wrap: wrap;
     }
 
     select, button {
@@ -70,9 +72,27 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
       padding: 0.5rem 0.8rem;
       font-size: 0.9rem;
       cursor: pointer;
+      transition: all 0.2s ease;
     }
 
     select:focus, button:focus { outline: 2px solid var(--solar); }
+
+    .flash-btn {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: #000;
+      font-weight: 700;
+      border: none;
+      box-shadow: 0 2px 10px rgba(245, 158, 11, 0.3);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .flash-btn:hover {
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+    }
 
     .cards-grid {
       display: grid;
@@ -167,6 +187,189 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
     .bench-val { font-size: 1.15rem; font-weight: 700; color: var(--timing); }
     .bench-label { font-size: 0.75rem; color: var(--text-muted); }
 
+    /* Modal Dialog Styles */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal-window {
+      background: #161b22;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-width: 680px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 30px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.3rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0.2rem 0.5rem;
+    }
+    .modal-close-btn:hover { color: var(--text); }
+
+    .modal-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: #0d1117;
+      padding: 0 1.25rem;
+      gap: 0.5rem;
+    }
+
+    .modal-tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      padding: 0.75rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .modal-tab-btn.active {
+      color: var(--solar);
+      border-bottom-color: var(--solar);
+    }
+
+    .modal-body {
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .serial-status-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    .serial-status-banner.supported {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+    .serial-status-banner.unsupported {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+
+    .mode-card {
+      flex: 1;
+      min-width: 260px;
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0d1117;
+      cursor: pointer;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      transition: all 0.2s;
+    }
+    .mode-card.active {
+      border-color: var(--solar);
+      background: rgba(245, 158, 11, 0.08);
+    }
+    .mode-title { font-weight: 600; font-size: 0.9rem; color: var(--text); }
+    .mode-desc { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem; line-height: 1.4; }
+
+    .install-button-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1.5rem;
+      background: #0d1117;
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+    }
+
+    .install-action-btn {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+      color: #000 !important;
+      font-size: 1.05rem !important;
+      font-weight: 700 !important;
+      padding: 0.75rem 1.75rem !important;
+      border-radius: 8px !important;
+      border: none !important;
+      cursor: pointer !important;
+      box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4) !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 0.5rem !important;
+      transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+    }
+    .install-action-btn:hover {
+      transform: translateY(-1px) !important;
+      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.55) !important;
+    }
+
+    .flash-guide-card {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .bin-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 0.75rem;
+    }
+    .bin-card {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-decoration: none;
+      color: var(--text);
+      transition: border-color 0.2s;
+    }
+    .bin-card:hover { border-color: var(--solar); }
+
     footer {
       text-align: center;
       padding: 2rem 0 1rem;
@@ -190,6 +393,7 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
           <option value="">Loading stations...</option>
         </select>
         <button id="refresh-btn">🔄 Refresh</button>
+        <button class="flash-btn" onclick="openFlashModal()" title="Flash firmware to ESP32 via Web Serial">⚡ Flash Firmware</button>
       </div>
     </header>
 
@@ -300,8 +504,138 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
 
     <footer>
       <p>ESP32 Solar Telemetry System &bull; Minimal SPIFFS & Dual OTA &bull; Cloudflare Edge & D1 Database</p>
-      <p><a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull; Firmware v<span id="fw-version">1.0.0</span></p>
+      <p><a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull; Firmware v<span id="fw-version">1.0.0</span> &bull; <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a></p>
     </footer>
+  </div>
+
+  <!-- Firmware Flasher Modal Dialog -->
+  <div id="flashModal" class="modal-backdrop" onclick="onModalBackdropClick(event)">
+    <div class="modal-window" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>⚡ ESP32 Web Firmware Installer</span>
+          <span class="badge badge-amber">v1.0.0 Stable</span>
+        </div>
+        <button class="modal-close-btn" onclick="closeFlashModal()" title="Close dialog">✕</button>
+      </div>
+
+      <div class="modal-tabs">
+        <button id="tabBtnWebSerial" class="modal-tab-btn active" onclick="switchFlashTab('webserial')">Web Serial Install</button>
+        <button id="tabBtnBinaries" class="modal-tab-btn" onclick="switchFlashTab('binaries')">Direct Binaries &amp; CLI</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Tab 1: Web Serial Install -->
+        <div id="flashTabWebSerial">
+          <div id="serialStatusBanner" class="serial-status-banner supported">
+            <div>
+              <span id="serialStatusIcon">✅</span>
+              <span id="serialStatusText">Web Serial API is supported in your browser! (Chrome, Edge, Brave, Opera)</span>
+            </div>
+          </div>
+
+          <div style="margin: 0.75rem 0 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+            Choose your installation type:
+          </div>
+
+          <!-- Mode Radio Selection -->
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">
+            <!-- Option 1: Clean Install / Full Firmware & Erase Device -->
+            <label id="modeCleanLabel" class="mode-card active" onclick="setFlashMode('clean')">
+              <input type="radio" name="flashModeRadio" value="clean" checked style="margin-top: 0.2rem;">
+              <div>
+                <div class="mode-title">🧹 Clean Install (Full Firmware &amp; Erase Device)</div>
+                <div class="mode-desc">For new or unconfigured ESP32 boards. Installs bootloader, partition table, boot_app0, and firmware. Prompts before formatting flash.</div>
+              </div>
+            </label>
+
+            <!-- Option 2: Update Firmware Only -->
+            <label id="modeUpdateLabel" class="mode-card" onclick="setFlashMode('update')">
+              <input type="radio" name="flashModeRadio" value="update" style="margin-top: 0.2rem;">
+              <div>
+                <div class="mode-title">⚡ Update Firmware Only (Keep Settings &amp; Data)</div>
+                <div class="mode-desc">Flashes only application partition (0x10000). Preserves Wi-Fi credentials, device token, and NVS configuration without wiping flash.</div>
+              </div>
+            </label>
+          </div>
+
+          <!-- ESP Web Install Button -->
+          <div class="install-button-wrapper">
+            <esp-web-install-button id="espWebInstallBtn" manifest="manifest.json">
+              <button slot="activate" class="install-action-btn" id="espActivateBtn">
+                ⚡ Connect ESP32 &amp; Flash Full Firmware
+              </button>
+              <span slot="unsupported" style="color:var(--temp);font-size:0.875rem;font-weight:600;">
+                ⚠️ Web Serial is not supported in this browser. Please use Chrome, Edge, Brave, or Opera on desktop.
+              </span>
+              <span slot="not-allowed" style="color:var(--temp);font-size:0.875rem;font-weight:600;">
+                ⚠️ Web Serial requires an HTTPS secure connection.
+              </span>
+            </esp-web-install-button>
+          </div>
+
+          <div class="flash-guide-card" style="margin-top: 1rem;">
+            <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 0.4rem;">Quick Flashing Steps:</div>
+            <ol style="padding-left: 1.25rem; font-size: 0.8rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 0.3rem;">
+              <li>Connect your ESP32 board to your computer with a USB data cable.</li>
+              <li>Click the Connect button and select your serial port (e.g. <code>CP210x</code>, <code>CH340</code>, or <code>USB JTAG</code>).</li>
+              <li>In <strong>Clean Install</strong> mode, check <em>Erase device</em> when prompted. In <strong>Update</strong> mode, settings are kept.</li>
+              <li>Wait for flashing to reach 100%. The board reboots automatically into the new firmware!</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Tab 2: Direct Binaries & CLI -->
+        <div id="flashTabBinaries" style="display: none;">
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            Download compiled binary files for manual flashing with <code>esptool.py</code> or PlatformIO:
+          </div>
+
+          <div class="bin-grid">
+            <a href="firmware/firmware-esp32-merged.bin" download class="bin-card">
+              <div>
+                <div style="font-weight: 600; font-size: 0.85rem;">firmware-esp32-merged.bin</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Complete merged flash image at offset 0x0</div>
+              </div>
+              <span class="badge badge-amber">Download</span>
+            </a>
+            <a href="firmware/firmware.bin" download class="bin-card">
+              <div>
+                <div style="font-weight: 600; font-size: 0.85rem;">firmware.bin</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Application binary (offset 0x10000)</div>
+              </div>
+              <span class="badge badge-blue">Download</span>
+            </a>
+            <a href="firmware/bootloader.bin" download class="bin-card">
+              <div>
+                <div style="font-weight: 600; font-size: 0.85rem;">bootloader.bin</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">ESP32 bootloader (offset 0x1000)</div>
+              </div>
+              <span class="badge badge-blue">Download</span>
+            </a>
+            <a href="firmware/partitions.bin" download class="bin-card">
+              <div>
+                <div style="font-weight: 600; font-size: 0.85rem;">partitions.bin</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Minimal SPIFFS + Dual OTA (offset 0x8000)</div>
+              </div>
+              <span class="badge badge-blue">Download</span>
+            </a>
+            <a href="firmware/boot_app0.bin" download class="bin-card">
+              <div>
+                <div style="font-weight: 600; font-size: 0.85rem;">boot_app0.bin</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">OTA initial data vector (offset 0xe000)</div>
+              </div>
+              <span class="badge badge-blue">Download</span>
+            </a>
+          </div>
+
+          <div style="margin-top: 1rem;">
+            <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem;">Flash Single Merged Binary (0x0):</div>
+            <pre style="background: #0d1117; padding: 0.65rem 0.85rem; border-radius: 6px; border: 1px solid var(--border); font-size: 0.8rem; overflow-x: auto; color: #38bdf8;">esptool.py --chip esp32 write_flash 0x0 firmware-esp32-merged.bin</pre>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -319,7 +653,14 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
 
     async function init() {
       setupEventListeners();
+      checkSerialSupport();
       await loadStations();
+
+      // Check URL params for ?flash=1
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("flash") === "1" || urlParams.get("flash") === "true") {
+        setTimeout(openFlashModal, 250);
+      }
     }
 
     function setupEventListeners() {
@@ -340,6 +681,75 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
           renderOverlayChart(cachedHistory, activeMetric);
         });
       });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeFlashModal();
+      });
+    }
+
+    // Modal & Flashing Functions
+    function openFlashModal() {
+      const modal = document.getElementById("flashModal");
+      if (modal) {
+        modal.classList.add("active");
+        document.body.style.overflow = "hidden";
+      }
+      checkSerialSupport();
+    }
+
+    function closeFlashModal() {
+      const modal = document.getElementById("flashModal");
+      if (modal) {
+        modal.classList.remove("active");
+        document.body.style.overflow = "";
+      }
+    }
+
+    function onModalBackdropClick(e) {
+      if (e.target.id === "flashModal") closeFlashModal();
+    }
+
+    function switchFlashTab(tab) {
+      document.getElementById("tabBtnWebSerial").classList.toggle("active", tab === "webserial");
+      document.getElementById("tabBtnBinaries").classList.toggle("active", tab === "binaries");
+      document.getElementById("flashTabWebSerial").style.display = (tab === "webserial") ? "block" : "none";
+      document.getElementById("flashTabBinaries").style.display = (tab === "binaries") ? "block" : "none";
+    }
+
+    function setFlashMode(mode) {
+      const isClean = (mode === "clean");
+      document.getElementById("modeCleanLabel").classList.toggle("active", isClean);
+      document.getElementById("modeUpdateLabel").classList.toggle("active", !isClean);
+      document.querySelector('input[value="clean"]').checked = isClean;
+      document.querySelector('input[value="update"]').checked = !isClean;
+
+      const btn = document.getElementById("espWebInstallBtn");
+      const actBtn = document.getElementById("espActivateBtn");
+      const manifestPath = isClean ? "manifest.json" : "manifest-update.json";
+      btn.setAttribute("manifest", manifestPath);
+
+      if (actBtn) {
+        actBtn.innerHTML = isClean
+          ? "⚡ Connect ESP32 &amp; Flash Full Firmware"
+          : "⚡ Connect ESP32 &amp; Update Firmware Only";
+      }
+    }
+
+    function checkSerialSupport() {
+      const banner = document.getElementById("serialStatusBanner");
+      const icon = document.getElementById("serialStatusIcon");
+      const text = document.getElementById("serialStatusText");
+      if (!banner) return;
+
+      if ("serial" in navigator) {
+        banner.className = "serial-status-banner supported";
+        icon.textContent = "✅";
+        text.textContent = "Web Serial API is supported in your browser! (Chrome, Edge, Brave, Opera)";
+      } else {
+        banner.className = "serial-status-banner unsupported";
+        icon.textContent = "⚠️";
+        text.textContent = "Web Serial is not supported in this browser. Please open on desktop Chrome, Edge, Brave, or Opera.";
+      }
     }
 
     async function loadStations() {
@@ -433,11 +843,9 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
       }
     }
 
-    // Renders the 0:00 to 24:00 3-Day Overlay Chart
     function renderOverlayChart(records, metric) {
       const ctx = document.getElementById("overlayChart").getContext("2d");
 
-      // Separate records into Today, Yesterday, and 2 Days Ago
       const now = new Date();
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       const msDay = 24 * 60 * 60 * 1000;
@@ -451,7 +859,6 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
         const recDayStart = new Date(new Date(r.timestamp).getFullYear(), new Date(r.timestamp).getMonth(), new Date(r.timestamp).getDate()).getTime();
         const diffDays = Math.round((startOfToday - recDayStart) / msDay);
 
-        // Calculate minute of day (0 to 1440) -> convert to decimal hour (0.00 to 24.00)
         const d = new Date(r.timestamp);
         const hourOfDay = d.getHours() + d.getMinutes() / 60;
 
@@ -467,7 +874,6 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
         else if (diffDays === 2) day2Ago.push(pt);
       });
 
-      // Sort points by hour
       [dayToday, dayYesterday, day2Ago].forEach(arr => arr.sort((a, b) => a.x - b.x));
 
       const metricLabels = {
@@ -561,7 +967,6 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
       });
     }
 
-    // Renders the Continuous 72-Hour Timeline
     function renderHistoryChart(records) {
       const ctx = document.getElementById("historyChart").getContext("2d");
 
@@ -643,10 +1048,9 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
       });
     }
 
-    // Renders the Cycle Benchmark Chart
     function renderTimingChart(records) {
       const ctx = document.getElementById("timingChart").getContext("2d");
-      const recent = records.slice(-30); // Last 30 cycles
+      const recent = records.slice(-30);
 
       const labels = recent.map((r, i) => "Cycle #" + (r.boot_count || i + 1));
       const measure = recent.map(r => r.cycle_measure_ms || 12);
@@ -681,27 +1085,22 @@ export function renderDashboardHtml(workerUrl: string = ""): string {
       });
     }
 
-    // Synthetic generator for demo or offline fallback
     function loadMockData() {
       const records = [];
       const now = Date.now();
-      const points = 3 * 24 * 6; // 3 days every 10 min
+      const points = 3 * 24 * 6;
 
       for (let i = points; i >= 0; i--) {
         const time = new Date(now - i * 10 * 60 * 1000);
         const hour = time.getHours() + time.getMinutes() / 60;
 
-        // Diurnal solar curve (peaks around 12:30 PM, 0 at night)
         let solarMv = 0;
         if (hour >= 6 && hour <= 18) {
           const sunAngle = Math.sin(((hour - 6) / 12) * Math.PI);
           solarMv = Math.max(0, Math.round(sunAngle * 5400 + (Math.random() * 200 - 100)));
         }
 
-        // LiPo curve: charges during day (up to 4.18V), discharges gently at night (down to 3.75V)
         const lipoMv = Math.round(3800 + (solarMv > 1000 ? 350 : -50) + Math.sin((hour / 24) * 2 * Math.PI) * 80);
-
-        // Temperature curve: 24°C night, 34°C afternoon
         const tempC = Number((28 + Math.sin(((hour - 9) / 24) * 2 * Math.PI) * 6 + (Math.random() * 0.4)).toFixed(1));
 
         records.push({

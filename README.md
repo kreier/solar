@@ -65,6 +65,10 @@ Edge-native telemetry fleet monitoring for ESP32 microcontrollers measuring sola
 6. **Multi-Day 0:00 to 24:00 Web Dashboard**:
    - Daily comparison overlays for the last 3 days showing diurnal curves for solar power, battery charging, and temperature.
    - Continuous 72-hour timeline and stacked execution latency benchmarks.
+7. **Web Serial Firmware Installer**:
+   - Built into both the Cloudflare Worker and GitHub Pages sites.
+   - **Full Firmware / Clean Install**: Flashes bootloader, partition table, boot_app0, and app with erase device prompt.
+   - **Update Only**: Flashes application partition only (0x10000), preserving Wi-Fi credentials, tokens, and settings.
 
 ---
 

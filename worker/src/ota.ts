@@ -83,7 +83,7 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
 }
 
 export async function handleFirmwareDownload(filename: string, env: Env): Promise<Response> {
-  // If R2 bucket is configured, serve directly
+  // 1. If R2 bucket is configured, serve directly
   if (env.R2_BUCKET) {
     try {
       const r2Object = await env.R2_BUCKET.get(filename);
@@ -99,7 +99,7 @@ export async function handleFirmwareDownload(filename: string, env: Env): Promis
     }
   }
 
-  // Fallback: GitHub Releases redirect
+  // 2. Try GitHub Releases
   const match = filename.match(/v(\d+\.\d+\.\d+)/);
   const tag = match ? `v${match[1]}` : `v${env.STABLE_VERSION || "1.0.0"}`;
   const ghUrl = `https://github.com/kreier/solar/releases/download/${tag}/${filename}`;
@@ -118,6 +118,24 @@ export async function handleFirmwareDownload(filename: string, env: Env): Promis
     }
   } catch (err) {
     console.warn("[OTA] GitHub Releases proxy failed:", err);
+  }
+
+  // 3. Try GitHub Pages static fallback
+  const pagesUrl = `https://kreier.github.io/solar/firmware/${filename}`;
+  try {
+    const pagesResponse = await fetch(pagesUrl, {
+      redirect: "follow",
+      headers: { "User-Agent": "kreier-solar-worker" }
+    });
+    if (pagesResponse.ok && pagesResponse.body) {
+      const headers = new Headers();
+      headers.set("Content-Type", "application/octet-stream");
+      headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+      headers.set("Access-Control-Allow-Origin", "*");
+      return new Response(pagesResponse.body, { status: 200, headers });
+    }
+  } catch (err) {
+    console.warn("[OTA] GitHub Pages proxy failed:", err);
   }
 
   return Response.redirect(ghUrl, 302);

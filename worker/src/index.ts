@@ -2,7 +2,7 @@ import { Env } from "./types";
 import { Database } from "./db";
 import { handleRegister } from "./register";
 import { handleTelemetry } from "./telemetry";
-import { handleOta } from "./ota";
+import { handleOta, handleFirmwareDownload } from "./ota";
 import { renderDashboardHtml } from "./frontend";
 
 export default {
@@ -48,6 +48,66 @@ export default {
       // 3. OTA Updates & Binary Streaming
       if (path === "/api/ota" || path.startsWith("/api/ota/download/")) {
         return withCors(await handleOta(request, env));
+      }
+
+      // Static Firmware Binary Download Endpoint
+      if (path.startsWith("/firmware/")) {
+        const filename = decodeURIComponent(path.substring("/firmware/".length));
+        return withCors(await handleFirmwareDownload(filename, env));
+      }
+
+      // ESP Web Tools Manifests for Web Serial Flashing
+      if (path === "/manifest.json") {
+        return withCors(
+          new Response(
+            JSON.stringify({
+              name: "Solar Telemetry Fleet (kreier/solar)",
+              version: env.STABLE_VERSION || "1.0.0",
+              funding_url: "https://github.com/kreier/solar",
+              new_install_prompt_erase: true,
+              builds: [
+                {
+                  chipFamily: "ESP32",
+                  parts: [
+                    { path: "firmware/bootloader.bin", offset: 4096 },
+                    { path: "firmware/partitions.bin", offset: 32768 },
+                    { path: "firmware/boot_app0.bin", offset: 57344 },
+                    { path: "firmware/firmware.bin", offset: 65536 }
+                  ]
+                }
+              ]
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" }
+            }
+          )
+        );
+      }
+
+      if (path === "/manifest-update.json") {
+        return withCors(
+          new Response(
+            JSON.stringify({
+              name: "Solar Telemetry Fleet (Update Only)",
+              version: env.STABLE_VERSION || "1.0.0",
+              funding_url: "https://github.com/kreier/solar",
+              new_install_prompt_erase: false,
+              builds: [
+                {
+                  chipFamily: "ESP32",
+                  parts: [
+                    { path: "firmware/firmware.bin", offset: 65536 }
+                  ]
+                }
+              ]
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" }
+            }
+          )
+        );
       }
 
       // 4. Stations List API
