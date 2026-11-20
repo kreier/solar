@@ -58,53 +58,48 @@ export default {
 
       // ESP Web Tools Manifests for Web Serial Flashing
       if (path === "/manifest.json" || path.startsWith("/manifest-")) {
-        const board = url.searchParams.get("board") || (path.includes("s3") ? "esp32s3" : (path.includes("c5") ? "esp32c5" : "esp32"));
-        const versionParam = url.searchParams.get("version") || (path.includes("canary") ? "1.1.0-canary" : "1.0.2");
+        const isCanary = path.includes("canary") || url.searchParams.get("version") === "1.1.0-canary";
         const isUpdate = path.includes("update") || url.searchParams.get("mode") === "update";
+        const versionStr = isCanary ? "1.1.0-canary" : "1.0.2";
 
-        let chipFamily = "ESP32";
-        let bootloaderOffset = 4096;
-        let partitionOffset = 32768;
-        let bootApp0Offset = 57344;
-        let appOffset = 65536;
-
-        if (board === "esp32s3") {
-          chipFamily = "ESP32-S3";
-          bootloaderOffset = 0;
-          partitionOffset = 32768;
-          bootApp0Offset = 57344;
-          appOffset = 65536;
-        } else if (board === "esp32c5") {
-          chipFamily = "ESP32-C6"; // Compatible flasher family in ESP Web Tools
-          bootloaderOffset = 0;
-          partitionOffset = 32768;
-          bootApp0Offset = 57344;
-          appOffset = 65536;
-        }
-
-        const binPrefix = board === "esp32" ? "firmware" : `firmware-${board}`;
-        const parts = isUpdate
-          ? [{ path: `firmware/${binPrefix}.bin`, offset: appOffset }]
+        const builds = isUpdate
+          ? [
+              {
+                chipFamily: "ESP32",
+                parts: [{ path: `firmware/firmware-esp32-v${versionStr}.bin`, offset: 65536 }]
+              },
+              {
+                chipFamily: "ESP32-S3",
+                parts: [{ path: `firmware/firmware-esp32s3-v${versionStr}.bin`, offset: 65536 }]
+              },
+              {
+                chipFamily: "ESP32-C6",
+                parts: [{ path: `firmware/firmware-esp32c5-v${versionStr}.bin`, offset: 65536 }]
+              }
+            ]
           : [
-              { path: `firmware/bootloader.bin`, offset: bootloaderOffset },
-              { path: `firmware/partitions.bin`, offset: partitionOffset },
-              { path: `firmware/boot_app0.bin`, offset: bootApp0Offset },
-              { path: `firmware/${binPrefix}.bin`, offset: appOffset }
+              {
+                chipFamily: "ESP32",
+                parts: [{ path: `firmware/firmware-esp32-merged-v${versionStr}.bin`, offset: 0 }]
+              },
+              {
+                chipFamily: "ESP32-S3",
+                parts: [{ path: `firmware/firmware-esp32s3-merged-v${versionStr}.bin`, offset: 0 }]
+              },
+              {
+                chipFamily: "ESP32-C6",
+                parts: [{ path: `firmware/firmware-esp32c5-merged-v${versionStr}.bin`, offset: 0 }]
+              }
             ];
 
         return withCors(
           new Response(
             JSON.stringify({
-              name: `Solar Telemetry Fleet (${chipFamily} ${isUpdate ? "Update" : "Full"})`,
-              version: versionParam,
+              name: `Solar Telemetry Fleet (${versionStr}${isUpdate ? " Update" : ""})`,
+              version: versionStr,
               funding_url: "https://github.com/kreier/solar",
               new_install_prompt_erase: !isUpdate,
-              builds: [
-                {
-                  chipFamily: chipFamily,
-                  parts: parts
-                }
-              ]
+              builds
             }),
             {
               status: 200,

@@ -1,8 +1,9 @@
 # ESP32-S3 16MB Flash Partition Table
-# Dual 4MB OTA Application Partitions + ~8MB LittleFS Storage
+# Dual 4MB OTA Application Partitions + ~8MB LittleFS Storage + Core Dump
 # Name,     Type, SubType,  Offset,    Size,      Flags
 nvs,        data, nvs,      0x9000,    0x5000,
 otadata,    data, ota,      0xe000,    0x2000,
 app0,       app,  ota_0,    0x10000,   0x400000,
 app1,       app,  ota_1,    0x410000,  0x400000,
-littlefs,   data, spiffs,   0x810000,  0x7F0000,
+littlefs,   data, spiffs,   0x810000,  0x7E0000,
+coredump,   data, coredump, 0xFF0000,  0x10000,

@@ -243,8 +243,7 @@ void runCycle() {
     }
     Serial.printf("[Benchmark] Measure duration: %u ms\n", timer.getMeasureDuration());
 
-    // Maintain 2-second double reset window
-    drd.loop();
+    // Check serial configuration commands
     checkSerialConfiguration();
 
     // 2. Power Saving Strategy Decision
@@ -272,7 +271,6 @@ void runCycle() {
         // If less than 6 samples accumulated (1 hour not yet reached), go directly to Deep Sleep!
         if (rtc_sample_count < 6) {
             Serial.printf("[Power] Minimal Energy: Sample #%d recorded in RTC memory. Entering DEEP SLEEP immediately...\n", rtc_sample_count);
-            drd.clear();
             timer.finalizeAndSaveForNextCycle();
             SleepManager::enterDeepSleep(600);
             return;
@@ -326,7 +324,6 @@ void runCycle() {
         rtc_sample_count = 0;
     }
 
-    drd.clear();
     timer.finalizeAndSaveForNextCycle();
 
     // 4. Enter Sleep

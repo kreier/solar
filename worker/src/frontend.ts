@@ -861,8 +861,13 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const isUpdate = (currentFlashMode === "update");
 
       const btn = document.getElementById("espWebInstallBtn");
-      const manifestUrl = \`manifest.json?board=\${board}&version=\${ver}&mode=\${currentFlashMode}\`;
-      btn.setAttribute("manifest", manifestUrl);
+      let manifestFile = "manifest.json";
+      if (ver === "1.1.0-canary") {
+        manifestFile = isUpdate ? "manifest-canary-update.json" : "manifest-canary.json";
+      } else {
+        manifestFile = isUpdate ? "manifest-update.json" : "manifest.json";
+      }
+      btn.setAttribute("manifest", manifestFile);
 
       document.getElementById("modal-ver-badge").textContent = \`\${ver} (\${board.toUpperCase()})\`;
       const actBtn = document.getElementById("espActivateBtn");
@@ -1615,16 +1620,6 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       }
 
       return records;
-    }
-
-      cachedHistory = records;
-      document.getElementById("station-subtitle").innerHTML =
-        "Station: <b>phumy2</b> • Location: <b>District 7, HCMC</b> • <span class='badge badge-amber'>Node FW v1.0.2</span> • 432 telemetry points recorded";
-      updateSummaryCards({ station_id: "phumy2", location: "District 7, HCMC", firmware_version: "1.0.2" }, records[records.length - 1]);
-      renderOverlayChart(records, activeMetric);
-      renderHistoryChart(records);
-      renderTimingChart(records);
-      renderBatteryAnalytics(records);
     }
 
     window.addEventListener("DOMContentLoaded", init);

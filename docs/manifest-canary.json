@@ -7,10 +7,7 @@
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "firmware/bootloader.bin", "offset": 4096 },
-        { "path": "firmware/partitions.bin", "offset": 32768 },
-        { "path": "firmware/boot_app0.bin", "offset": 57344 },
-        { "path": "firmware/firmware-esp32-v1.1.0-canary.bin", "offset": 65536 }
+        { "path": "firmware/firmware-esp32-merged-v1.1.0-canary.bin", "offset": 0 }
       ]
     },
     {

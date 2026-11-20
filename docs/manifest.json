@@ -1,5 +1,5 @@
 {
-  "name": "Solar Telemetry Fleet (kreier/solar)",
+  "name": "Solar Telemetry Fleet (v1.0.2)",
   "version": "1.0.2",
   "funding_url": "https://github.com/kreier/solar",
   "new_install_prompt_erase": true,
@@ -7,10 +7,7 @@
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "firmware/bootloader.bin", "offset": 4096 },
-        { "path": "firmware/partitions.bin", "offset": 32768 },
-        { "path": "firmware/boot_app0.bin", "offset": 57344 },
-        { "path": "firmware/firmware-esp32-v1.0.2.bin", "offset": 65536 }
+        { "path": "firmware/firmware-esp32-merged-v1.0.2.bin", "offset": 0 }
       ]
     },
     {
