@@ -102,42 +102,42 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
   );
 }
 
+function createBinaryResponse(buffer: ArrayBuffer, filename: string): Response {
+  const headers = new Headers();
+  headers.set("Content-Type", "application/octet-stream");
+  headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+  headers.set("Content-Length", buffer.byteLength.toString());
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  return new Response(buffer, { status: 200, headers });
+}
+
 export async function handleFirmwareDownload(filename: string, env: Env): Promise<Response> {
   // 1. If R2 bucket is configured, serve directly
   if (env.R2_BUCKET) {
     try {
       const r2Object = await env.R2_BUCKET.get(filename);
       if (r2Object && r2Object.body) {
-        const headers = new Headers();
-        headers.set("Content-Type", "application/octet-stream");
-        headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-        headers.set("Access-Control-Allow-Origin", "*");
-        return new Response(r2Object.body, { status: 200, headers });
+        const buffer = await r2Object.arrayBuffer();
+        return createBinaryResponse(buffer, filename);
       }
     } catch (err) {
       console.warn("[OTA] R2 lookup failed:", err);
     }
   }
 
-  // 2. Try GitHub Releases
-  const match = filename.match(/v(\d+\.\d+\.\d+)/);
-  const tag = match ? `v${match[1]}` : `v${env.STABLE_VERSION || "1.0.2"}`;
-  const ghUrl = `https://github.com/kreier/solar/releases/download/${tag}/${filename}`;
-
+  // 2. Try raw GitHub repo main branch (immediately available on push)
+  const rawGhUrl = `https://raw.githubusercontent.com/kreier/solar/main/docs/firmware/${filename}`;
   try {
-    const ghResponse = await fetch(ghUrl, {
-      redirect: "follow",
+    const rawResponse = await fetch(rawGhUrl, {
       headers: { "User-Agent": "kreier-solar-worker" }
     });
-    if (ghResponse.ok && ghResponse.body) {
-      const headers = new Headers();
-      headers.set("Content-Type", "application/octet-stream");
-      headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-      headers.set("Access-Control-Allow-Origin", "*");
-      return new Response(ghResponse.body, { status: 200, headers });
+    if (rawResponse.ok && rawResponse.body) {
+      const buffer = await rawResponse.arrayBuffer();
+      return createBinaryResponse(buffer, filename);
     }
   } catch (err) {
-    console.warn("[OTA] GitHub Releases proxy failed:", err);
+    console.warn("[OTA] Raw GitHub proxy failed:", err);
   }
 
   // 3. Try GitHub Pages static fallback
@@ -148,31 +148,29 @@ export async function handleFirmwareDownload(filename: string, env: Env): Promis
       headers: { "User-Agent": "kreier-solar-worker" }
     });
     if (pagesResponse.ok && pagesResponse.body) {
-      const headers = new Headers();
-      headers.set("Content-Type", "application/octet-stream");
-      headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-      headers.set("Access-Control-Allow-Origin", "*");
-      return new Response(pagesResponse.body, { status: 200, headers });
+      const buffer = await pagesResponse.arrayBuffer();
+      return createBinaryResponse(buffer, filename);
     }
   } catch (err) {
     console.warn("[OTA] GitHub Pages proxy failed:", err);
   }
 
-  // 4. Try raw GitHub repo main branch (immediately available on push)
-  const rawGhUrl = `https://raw.githubusercontent.com/kreier/solar/main/docs/firmware/${filename}`;
+  // 4. Try GitHub Releases
+  const match = filename.match(/v(\d+\.\d+\.\d+)/);
+  const tag = match ? `v${match[1]}` : `v${env.STABLE_VERSION || "1.0.2"}`;
+  const ghUrl = `https://github.com/kreier/solar/releases/download/${tag}/${filename}`;
+
   try {
-    const rawResponse = await fetch(rawGhUrl, {
+    const ghResponse = await fetch(ghUrl, {
+      redirect: "follow",
       headers: { "User-Agent": "kreier-solar-worker" }
     });
-    if (rawResponse.ok && rawResponse.body) {
-      const headers = new Headers();
-      headers.set("Content-Type", "application/octet-stream");
-      headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-      headers.set("Access-Control-Allow-Origin", "*");
-      return new Response(rawResponse.body, { status: 200, headers });
+    if (ghResponse.ok && ghResponse.body) {
+      const buffer = await ghResponse.arrayBuffer();
+      return createBinaryResponse(buffer, filename);
     }
   } catch (err) {
-    console.warn("[OTA] Raw GitHub proxy failed:", err);
+    console.warn("[OTA] GitHub Releases proxy failed:", err);
   }
 
   return Response.redirect(ghUrl, 302);
