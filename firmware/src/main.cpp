@@ -9,9 +9,10 @@
 #include "sleep_manager.h"
 #include "double_reset.h"
 #include "portal_manager.h"
+#include "monitor_manager.h"
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.1.0-canary"
+#define FIRMWARE_VERSION "1.1.2-canary"
 #endif
 
 #ifndef TARGET_BOARD
@@ -25,6 +26,19 @@ RTC_DATA_ATTR BufferedSample rtc_samples[6];
 RTC_DATA_ATTR uint8_t rtc_sample_count = 0;
 RTC_DATA_ATTR uint8_t rtc_bssid[6] = {0};
 RTC_DATA_ATTR int32_t rtc_channel = 0;
+
+// 10-minute rolling accumulator for Active (1), Verbose (2), and Monitor (3) modes
+uint8_t active_sample_count = 0;
+float active_temp_sum = 0.0f;
+int32_t active_solar_sum = 0;
+int32_t active_lipo_sum = 0;
+float active_ch1_v_sum = 0.0f;
+float active_ch1_ma_sum = 0.0f;
+float active_ch1_mw_sum = 0.0f;
+float active_ch3_v_sum = 0.0f;
+float active_ch3_ma_sum = 0.0f;
+float active_ch3_mw_sum = 0.0f;
+float active_ch3_res_sum = 0.0f;
 
 AdcReader adc;
 Ina3221Reader ina;
@@ -220,10 +234,22 @@ void checkSerialConfiguration() {
 void runCycle() {
     timer.startCycle();
 
-    Serial.println(F("\n--------------------------------------------------"));
-    Serial.printf("[Cycle #%d] Starting measurement & telemetry cycle (Mode: %s)\n",
-                  timer.getBootCount(), config.power_mode == 0 ? "Minimal Energy (1h Batch)" : "Balanced");
-    Serial.println(F("--------------------------------------------------"));
+    const char *modeNames[] = {
+        "1. Low Power (Deep Sleep)",
+        "2. Active (Light Sleep)",
+        "3. Verbose",
+        "4. Monitor"
+    };
+    const char *modeStr = (config.power_mode <= 3) ? modeNames[config.power_mode] : "Custom";
+
+    bool isVerbose = (config.power_mode == 2 || config.power_mode == 0 || active_sample_count == 0);
+
+    if (isVerbose) {
+        Serial.println(F("\n--------------------------------------------------"));
+        Serial.printf("[Cycle #%d] Starting measurement cycle (Mode: %s)\n",
+                      timer.getBootCount(), modeStr);
+        Serial.println(F("--------------------------------------------------"));
+    }
 
     // 1. Measure ADC sensors with modern adc_cali_raw_to_voltage and configurable factors
     timer.markMeasureStart();
@@ -238,7 +264,6 @@ void runCycle() {
     memset(&inaData, 0, sizeof(inaData));
     if (config.has_ina3221) {
         inaData = ina.read();
-        // If INA3221 is enabled and present, Solar voltage is measured directly from INA3221 CH1
         if (inaData.present && config.enable_solar) {
             readings.solar_v = inaData.ch1_solar_v;
             readings.solar_mv = static_cast<int>(inaData.ch1_solar_v * 1000.0f);
@@ -246,35 +271,38 @@ void runCycle() {
     }
     timer.markMeasureEnd();
 
-    Serial.printf("[Sensors] Local Temp:  %.1f °C (%d mV) [%s]\n",
-                  readings.temp_c, readings.temp_mv, config.temp_source == 1 ? "Internal Sensor" : "External Pin");
-    if (config.enable_solar) {
-        Serial.printf("[Sensors] Solar Panel: %.2f V (%d mV) [%s]\n",
-                      readings.solar_v, readings.solar_mv, (config.has_ina3221 && inaData.present) ? "INA3221 CH1" : "ADC Pin");
-    } else {
-        Serial.println(F("[Sensors] Solar Panel: Disabled in configuration"));
+    if (isVerbose) {
+        Serial.printf("[Sensors] Local Temp:  %.1f °C (%d mV) [%s]\n",
+                      readings.temp_c, readings.temp_mv, config.temp_source == 1 ? "Internal Sensor" : "External Pin");
+        if (config.enable_solar) {
+            Serial.printf("[Sensors] Solar Panel: %.2f V (%d mV) [%s]\n",
+                          readings.solar_v, readings.solar_mv, (config.has_ina3221 && inaData.present) ? "INA3221 CH1" : "ADC Pin");
+        } else {
+            Serial.println(F("[Sensors] Solar Panel: Disabled in configuration"));
+        }
+        if (config.enable_lipo) {
+            Serial.printf("[Sensors] LiPo Battery:%.2f V (%d mV) [Factor x%.2f]\n",
+                          readings.lipo_v, readings.lipo_mv, config.cal_lipo_factor);
+        } else {
+            Serial.println(F("[Sensors] LiPo Battery:Disabled in configuration"));
+        }
+        if (inaData.present) {
+            Serial.printf("[INA3221] CH1 Solar: %.3f V, %.1f mA, %.1f mW\n",
+                          inaData.ch1_solar_v, inaData.ch1_solar_ma, inaData.ch1_solar_mw);
+            Serial.printf("[INA3221] CH3 Load:  %.3f V, %.1f mA, %.1f mW (Res: %.1f Ohm)\n",
+                          inaData.ch3_load_v, inaData.ch3_load_ma, inaData.ch3_load_mw, inaData.ch3_load_res_ohm);
+        }
+        Serial.printf("[Benchmark] Measure duration: %lu ms\n", (unsigned long)timer.getMeasureDuration());
     }
-    if (config.enable_lipo) {
-        Serial.printf("[Sensors] LiPo Battery:%.2f V (%d mV) [Factor x%.2f]\n",
-                      readings.lipo_v, readings.lipo_mv, config.cal_lipo_factor);
-    } else {
-        Serial.println(F("[Sensors] LiPo Battery:Disabled in configuration"));
-    }
-    if (inaData.present) {
-        Serial.printf("[INA3221] CH1 Solar: %.3f V, %.1f mA, %.1f mW\n",
-                      inaData.ch1_solar_v, inaData.ch1_solar_ma, inaData.ch1_solar_mw);
-        Serial.printf("[INA3221] CH3 Load:  %.3f V, %.1f mA, %.1f mW (Res: %.1f Ohm)\n",
-                      inaData.ch3_load_v, inaData.ch3_load_ma, inaData.ch3_load_mw, inaData.ch3_load_res_ohm);
-    }
-    Serial.printf("[Benchmark] Measure duration: %lu ms\n", (unsigned long)timer.getMeasureDuration());
 
     // Check serial configuration commands
     checkSerialConfiguration();
 
-    // 2. Power Saving Strategy Decision
-    // Mode 0: Minimal Energy Consumption (Store reading to RTC, upload only every 6 cycles = 1 hour)
+    // 2. Power Saving & Operating Mode Decision
+    // ==========================================
+
+    // Category 1: Low Power Mode (Deep Sleep, 10m RTC sample, 1h batch upload, 24h OTA)
     if (config.power_mode == 0) {
-        // Save reading to RTC buffer
         if (rtc_sample_count < 6) {
             rtc_samples[rtc_sample_count].boot_count = timer.getBootCount();
             rtc_samples[rtc_sample_count].solar_mv   = readings.solar_mv;
@@ -293,22 +321,92 @@ void runCycle() {
             rtc_sample_count++;
         }
 
-        // If less than 6 samples accumulated (1 hour not yet reached), go directly to Deep Sleep!
+        // If fewer than 6 samples accumulated (1 hour not reached), enter Deep Sleep immediately
         if (rtc_sample_count < 6) {
-            Serial.printf("[Power] Minimal Energy: Sample #%d recorded in RTC memory. Entering DEEP SLEEP immediately...\n", rtc_sample_count);
+            Serial.printf("[Power] Low Power: Sample #%d/6 recorded in RTC memory. Entering DEEP SLEEP (10m)...\n", rtc_sample_count);
             timer.finalizeAndSaveForNextCycle();
             SleepManager::enterDeepSleep(600);
             return;
         }
 
-        Serial.println(F("[Power] 1-Hour accumulation reached (6 samples in RTC). Initiating batch telemetry upload..."));
+        Serial.println(F("[Power] Low Power: 1-Hour accumulation reached (6 samples in RTC). Initiating batch upload..."));
     }
 
-    // 3. Wi-Fi Connection Phase (Hourly in Mode 0, or Every Cycle in Mode 1)
+    // Categories 2, 3, 4: Active (1), Verbose (2), Monitor (3)
+    // 1-minute measurements, averaged into a 10-minute slot
+    else {
+        active_sample_count++;
+        active_temp_sum += readings.temp_c;
+        active_solar_sum += readings.solar_mv;
+        active_lipo_sum += readings.lipo_mv;
+        if (inaData.present) {
+            active_ch1_v_sum += inaData.ch1_solar_v;
+            active_ch1_ma_sum += inaData.ch1_solar_ma;
+            active_ch1_mw_sum += inaData.ch1_solar_mw;
+            active_ch3_v_sum += inaData.ch3_load_v;
+            active_ch3_ma_sum += inaData.ch3_load_ma;
+            active_ch3_mw_sum += inaData.ch3_load_mw;
+            active_ch3_res_sum += inaData.ch3_load_res_ohm;
+        }
+
+        // If fewer than 10 samples (10 minutes not reached), return to Light Sleep
+        if (active_sample_count < 10) {
+            if (config.power_mode == 2) {
+                Serial.printf("[Power] Verbose: Sample #%d/10 recorded (Temp: %.1fC, Sol: %dmV, Bat: %dmV). Sleeping 60s...\n",
+                              active_sample_count, readings.temp_c, readings.solar_mv, readings.lipo_mv);
+            }
+            timer.finalizeAndSaveForNextCycle();
+            SleepManager::enterLightSleep(60);
+            return;
+        }
+
+        // 10 samples reached: calculate average for the 10-minute slot
+        Serial.printf("[Power] %s: 10-minute average computed (%d samples). Initiating telemetry upload...\n",
+                      modeStr, active_sample_count);
+
+        readings.temp_c = active_temp_sum / (float)active_sample_count;
+        readings.temp_mv = static_cast<int>(readings.temp_c * 10.0f);
+        readings.solar_mv = active_solar_sum / active_sample_count;
+        readings.solar_v = readings.solar_mv / 1000.0f;
+        readings.lipo_mv = active_lipo_sum / active_sample_count;
+        readings.lipo_v = readings.lipo_mv / 1000.0f;
+
+        if (inaData.present) {
+            inaData.ch1_solar_v = active_ch1_v_sum / (float)active_sample_count;
+            inaData.ch1_solar_ma = active_ch1_ma_sum / (float)active_sample_count;
+            inaData.ch1_solar_mw = active_ch1_mw_sum / (float)active_sample_count;
+            inaData.ch3_load_v = active_ch3_v_sum / (float)active_sample_count;
+            inaData.ch3_load_ma = active_ch3_ma_sum / (float)active_sample_count;
+            inaData.ch3_load_mw = active_ch3_mw_sum / (float)active_sample_count;
+            inaData.ch3_load_res_ohm = active_ch3_res_sum / (float)active_sample_count;
+        }
+
+        // Reset accumulators
+        active_sample_count = 0;
+        active_temp_sum = 0.0f;
+        active_solar_sum = 0;
+        active_lipo_sum = 0;
+        active_ch1_v_sum = 0.0f;
+        active_ch1_ma_sum = 0.0f;
+        active_ch1_mw_sum = 0.0f;
+        active_ch3_v_sum = 0.0f;
+        active_ch3_ma_sum = 0.0f;
+        active_ch3_mw_sum = 0.0f;
+        active_ch3_res_sum = 0.0f;
+    }
+
+    // Category 4 (Monitor Mode): Run Wi-Fi Channel Occupancy & BLE Scan
+    MonitorMetrics monitorMetrics;
+    memset(&monitorMetrics, 0, sizeof(monitorMetrics));
+    if (config.power_mode == 3) {
+        monitorMetrics = MonitorManager::performScan(13);
+    }
+
+    // 3. Wi-Fi Connection Phase
     bool online = connectToWiFi();
 
     if (online) {
-        // Check Zero-Trust Provisioning
+        // Zero-Trust Provisioning
         if (!configMgr.hasDeviceToken()) {
             Serial.println(F("[Auth] No device token in NVS. Initiating station registration..."));
             if (strlen(config.master_phrase) > 0) {
@@ -318,22 +416,27 @@ void runCycle() {
                                                     config.is_canary, newToken);
                 if (ok && newToken.length() > 0) {
                     configMgr.saveDeviceToken(newToken);
-                    configMgr.eraseMasterPhrase(config); // Zero-Trust: Master phrase erased
+                    configMgr.eraseMasterPhrase(config);
                 }
             } else {
                 Serial.println(F("[Auth] WARNING: MASTER_PHRASE is empty. Set it via portal or serial."));
             }
         }
 
-        // Telemetry Upload (Authenticated with Bearer device_token)
+        // Telemetry Upload
         if (configMgr.hasDeviceToken()) {
             String token = configMgr.getDeviceToken();
             ApiClient::uploadTelemetry(config.worker_url, token, config, readings, inaData, timer,
                                       (config.power_mode == 0) ? rtc_samples : nullptr,
-                                      (config.power_mode == 0) ? rtc_sample_count : 0);
+                                      (config.power_mode == 0) ? rtc_sample_count : 0,
+                                      (config.power_mode == 3) ? &monitorMetrics : nullptr);
 
-            // Automatic OTA check (every 120 cycles in balanced mode / daily, plus on early boot cycles)
-            if (timer.getBootCount() <= 3 || (timer.getBootCount() % 120) == 1) {
+            // OTA Check: Daily (every 144 cycles / 24h) in Low Power; Hourly (every 6 uploads = 60m) in Active/Verbose/Monitor
+            bool doOta = (config.power_mode == 0)
+                ? ((timer.getBootCount() % 144) == 1)
+                : ((timer.getBootCount() % 6) == 1 || timer.getBootCount() <= 2);
+
+            if (doOta) {
                 Serial.println(F("[OTA] Checking for firmware update..."));
                 OtaManager::checkForUpdate(config.worker_url, config.station_id, FIRMWARE_VERSION);
             }
@@ -344,20 +447,20 @@ void runCycle() {
         Serial.println(F("[WiFi] Offline this cycle, telemetry cached in RTC memory"));
     }
 
-    // Reset RTC sample count after upload attempt
+    // Reset RTC sample count after upload attempt (Low Power)
     if (config.power_mode == 0) {
         rtc_sample_count = 0;
     }
 
     timer.finalizeAndSaveForNextCycle();
 
-    // 4. Enter Sleep (30 seconds in Balanced mode for frequent telemetry, 600s in Minimal Energy mode)
+    // 4. Enter Sleep
     if (config.power_mode == 0) {
         Serial.println(F("[Power] Entering DEEP SLEEP for 10 minutes (600s)..."));
         SleepManager::enterDeepSleep(600);
     } else {
-        Serial.println(F("[Power] Entering LIGHT SLEEP for 30 seconds..."));
-        SleepManager::enterLightSleep(30);
+        Serial.println(F("[Power] Entering LIGHT SLEEP for 60 seconds..."));
+        SleepManager::enterLightSleep(60);
     }
 }
 

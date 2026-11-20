@@ -100,8 +100,10 @@ public:
             html += F("<div class='card'><div class='sub-title'>Energy &amp; Telemetry Mode</div>");
             html += F("<label>Power Saving Strategy</label>");
             html += F("<select name='power_mode'>");
-            html += String("<option value='0'") + (config.power_mode == 0 ? " selected" : "") + ">Minimal Energy (Deep Sleep, 10m read to RTC, 1h batch upload)</option>";
-            html += String("<option value='1'") + (config.power_mode == 1 ? " selected" : "") + ">Balanced Mode (10m measurement &amp; immediate upload)</option>";
+            html += String("<option value='0'") + (config.power_mode == 0 ? " selected" : "") + ">1. Low Power (Deep Sleep, 10m RTC measure, 1h upload, 24h OTA)</option>";
+            html += String("<option value='1'") + (config.power_mode == 1 ? " selected" : "") + ">2. Active (Light Sleep, 1m measure, 10m avg upload, 1h OTA)</option>";
+            html += String("<option value='2'") + (config.power_mode == 2 ? " selected" : "") + ">3. Verbose (Active + 1m serial log output)</option>";
+            html += String("<option value='3'") + (config.power_mode == 3 ? " selected" : "") + ">4. Monitor (Active + Wi-Fi channel occupancy &amp; BLE scan)</option>";
             html += F("</select>");
 
             html += F("<label class='checkbox-label'>");

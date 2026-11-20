@@ -195,6 +195,58 @@ export function renderDashboardHtml(workerUrl?: string): string {
     .bench-val { font-size: 1.15rem; font-weight: 700; color: var(--timing); }
     .bench-label { font-size: 0.75rem; color: var(--text-muted); }
 
+    /* Collapsible RF Monitor Section */
+    .collapse-toggle-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 0.25rem 0.6rem;
+      transition: transform 0.2s ease, color 0.2s ease;
+    }
+    .collapse-toggle-btn:hover {
+      color: var(--text-main);
+      border-color: var(--text-muted);
+    }
+    .collapse-toggle-btn.collapsed {
+      transform: rotate(-90deg);
+    }
+    .palette-select {
+      background: #0d1117;
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.35rem 0.6rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .heatmap-container {
+      position: relative;
+      width: 100%;
+      height: 320px;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .heatmap-tooltip {
+      position: absolute;
+      display: none;
+      background: rgba(22, 27, 34, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.75rem;
+      color: #f0f6fc;
+      pointer-events: none;
+      z-index: 100;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+      white-space: nowrap;
+      line-height: 1.4;
+    }
+
     /* Modal Dialog Styles */
     .modal-backdrop {
       display: none;
@@ -408,7 +460,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="title-area">
         <h1>
           <span>☀️</span> Solar Telemetry Fleet
-          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.1</span>
+          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.2</span>
         </h1>
         <div class="subtitle" id="station-subtitle">Connecting to Cloudflare D1 Edge Ingestion...</div>
       </div>
@@ -546,7 +598,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
     <div class="chart-section">
       <div class="chart-header">
         <div>
-          <div class="chart-title">Node Execution Latency &amp; Cycle Benchmarks</div>
+          <div class="chart-title">Edge Execution &amp; Telemetry Roundtrip Benchmarks</div>
           <div class="subtitle" id="timing-subtitle">Stage durations: Sensor measurement, Wi-Fi association, DHCP IP, and TLS telemetry upload</div>
         </div>
         <div class="btn-group" id="benchmark-range-toggle">
@@ -597,13 +649,69 @@ export function renderDashboardHtml(workerUrl?: string): string {
       </div>
     </div>
 
+    <!-- RF & BLE Activity Monitor Heatmap -->
+    <div class="chart-section" id="rf-monitor-section">
+      <div class="chart-header" style="cursor: pointer;" onclick="toggleRfMonitor(event)">
+        <div>
+          <div class="chart-title">
+            <span>📡 2.4 GHz RF &amp; BLE Environmental Activity Monitor</span>
+            <span class="badge badge-amber" style="margin-left:0.5rem; font-size:0.75rem;">Mode 3 / Monitor</span>
+          </div>
+          <div class="subtitle" id="rf-subtitle">Passive promiscuous RF packet density across channels 1–13 and BLE device discovery</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.75rem;" onclick="event.stopPropagation()">
+          <div class="btn-group" id="rf-view-toggle">
+            <button class="active" data-rf-view="30m" onclick="switchRfView('30m')">Today (30m Slots)</button>
+            <button data-rf-view="7d" onclick="switchRfView('7d')">7-Day Trend</button>
+          </div>
+          <select id="rf-palette-select" class="palette-select" onchange="changeRfPalette(this.value)" title="Heatmap Color Scheme">
+            <option value="inferno">Inferno</option>
+            <option value="viridis">Viridis</option>
+            <option value="turbo">Turbo / Rainbow</option>
+            <option value="amber" selected>Amber / Solar</option>
+          </select>
+          <button class="collapse-toggle-btn" id="rf-collapse-btn" onclick="toggleRfMonitor(event)" title="Toggle section">▼</button>
+        </div>
+      </div>
+
+      <div id="rf-monitor-body">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem; flex-wrap:wrap; gap:0.5rem;">
+          <div style="font-size:0.8rem; color:var(--text-muted);" id="rf-legend-title">Wi-Fi &amp; BLE Environmental Radio Activity</div>
+          <div class="heatmap-legend" id="rf-legend" style="display:flex; align-items:center; gap:0.5rem;"></div>
+        </div>
+        <div class="heatmap-container" id="rf-heatmap-container">
+          <canvas id="rfHeatmapCanvas"></canvas>
+          <div class="heatmap-tooltip" id="rfHeatmapTooltip"></div>
+        </div>
+
+        <div class="bench-grid" style="margin-top: 1rem;">
+          <div class="bench-item">
+            <div class="bench-val" id="rf-busiest-ch">--</div>
+            <div class="bench-label">Busiest Channel</div>
+          </div>
+          <div class="bench-item">
+            <div class="bench-val" id="rf-max-pkts">-- pkts</div>
+            <div class="bench-label">Peak Wi-Fi Activity</div>
+          </div>
+          <div class="bench-item">
+            <div class="bench-val" id="rf-ble-count">--</div>
+            <div class="bench-label">Max BLE Devices</div>
+          </div>
+          <div class="bench-item">
+            <div class="bench-val" id="rf-cleanest-ch">--</div>
+            <div class="bench-label">Cleanest Channel</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <footer>
       <p>ESP32 Solar Telemetry Fleet &bull; Minimal SPIFFS &bull; Dual OTA &bull; Cloudflare Edge &amp; D1 Database</p>
       <p>
         <a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull;
-        <span>Website v1.1.1</span> &bull;
+        <span>Website v1.1.2</span> &bull;
         <span>Firmware v<span id="fw-version">1.0.2</span> (Stable)</span> &bull;
-        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.1 Canary</span> &bull;
+        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.2 Canary</span> &bull;
         <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a>
       </p>
     </footer>
@@ -649,7 +757,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
               <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;color:var(--text-muted);">Firmware Release Channel:</label>
               <select id="flasherVerSelect" style="width:100%;" onchange="updateFlasherManifest()">
                 <option value="1.0.2" selected>v1.0.2 Stable (Production)</option>
-                <option value="1.1.1-canary">v1.1.1 Canary (30s Light Sleep, 8-Stage Benchmarks, INA3221)</option>
+                <option value="1.1.2-canary">v1.1.2 Canary (4 Modes, RF/BLE Sniffer, 1.1s Cycle)</option>
               </select>
             </div>
           </div>
@@ -866,7 +974,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
       const btn = document.getElementById("espWebInstallBtn");
       let manifestFile = "manifest.json";
-      if (ver === "1.1.1-canary" || ver === "1.1.0-canary") {
+      if (ver === "1.1.2-canary" || ver === "1.1.1-canary" || ver === "1.1.0-canary") {
         manifestFile = isUpdate ? "manifest-canary-update.json" : "manifest-canary.json";
       } else {
         manifestFile = isUpdate ? "manifest-update.json" : "manifest.json";
@@ -940,6 +1048,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         renderHistoryChart(mock);
         renderTimingChart(mock, benchmarkRange);
         renderBatteryAnalytics(mock);
+        renderRfHeatmap(mock, currentRfView);
       }
     }
 
@@ -956,6 +1065,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         try { renderHistoryChart(cachedHistory); } catch(e) { console.error("renderHistoryChart error:", e); }
         try { renderTimingChart(cachedHistory, benchmarkRange); } catch(e) { console.error("renderTimingChart error:", e); }
         try { renderBatteryAnalytics(cachedHistory); } catch(e) { console.error("renderBatteryAnalytics error:", e); }
+        try { renderRfHeatmap(cachedHistory, currentRfView); } catch(e) { console.error("renderRfHeatmap error:", e); }
 
         const nodeFw = (data.station && data.station.firmware_version) ? ("Node FW v" + data.station.firmware_version) : "Node FW v1.0.2";
         const canaryBadge = (data.station && data.station.is_canary) ? " <span class='badge badge-blue'>Canary</span>" : "";
@@ -1002,9 +1112,12 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         console.warn("Failed to fetch extended benchmark data, falling back:", e);
       }
       if (days > 3) {
-        renderTimingChart(loadMockData(days), range);
+        const mockExt = loadMockData(days);
+        renderTimingChart(mockExt, range);
+        renderRfHeatmap(mockExt, currentRfView);
       } else {
         renderTimingChart(cachedHistory, range);
+        renderRfHeatmap(cachedHistory, currentRfView);
       }
     }
 
@@ -1085,6 +1198,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const latestV = latest.lipo_v || (latest.lipo_mv / 1000.0);
       const latestMv = latest.lipo_mv || Math.round(latestV * 1000);
 
+      // Usable headroom to 3.3V cutoff
       const headroomMv = Math.max(0, latestMv - 3300);
 
       // 1. 24-Hour calculation
@@ -1092,7 +1206,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       if (r24h.length >= 2) {
         const first24 = r24h[0];
         const firstMv = first24.lipo_mv || Math.round((first24.lipo_v || 3.8) * 1000);
-        const deltaMv = latestMv - firstMv;
+        const deltaMv = latestMv - firstMv; // positive = net charged, negative = discharged
         const elDrop24 = document.getElementById("est-drop-24h");
         const elRun24  = document.getElementById("est-runtime-24h");
         if (elDrop24) elDrop24.textContent = \`ΔV: \${deltaMv >= 0 ? "+" : ""}\${deltaMv} mV / 24h\`;
@@ -1508,16 +1622,8 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           const d = new Date(r.timestamp);
           d.setMinutes(0, 0, 0);
           const key = d.toISOString();
-          if (!buckets[key]) buckets[key] = { labelDate: d, measure: [], wifi: [], ip: [], dns: [], tcp: [], tls: [], post: [], upload: [], total: [] };
-          buckets[key].measure.push(r.cycle_measure_ms || 0);
-          buckets[key].wifi.push(r.cycle_wifi_ms || 0);
-          buckets[key].ip.push(r.cycle_ip_ms || 0);
-          buckets[key].dns.push(r.cycle_dns_ms || 0);
-          buckets[key].tcp.push(r.cycle_tcp_ms || 0);
-          buckets[key].tls.push(r.cycle_tls_ms || 0);
-          buckets[key].post.push((r.cycle_post_ms || 0) + (r.cycle_server_ms || 0));
-          buckets[key].upload.push(r.cycle_upload_ms || 0);
-          buckets[key].total.push(r.cycle_total_ms || 0);
+          if (!buckets[key]) buckets[key] = { labelDate: d, records: [] };
+          buckets[key].records.push(r);
         });
 
         const sortedKeys = Object.keys(buckets).sort();
@@ -1525,22 +1631,35 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           const d = buckets[k].labelDate;
           const dayName = d.toLocaleDateString([], { weekday: "short" });
           const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-          return dayName + " " + timeStr;
+          return \`\${dayName} \${timeStr}\`;
         });
 
-        const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+        // "week uses the worst value each hour"
+        const worstRecords = sortedKeys.map(k => {
+          const recs = buckets[k].records;
+          let worst = recs[0];
+          let maxTotal = 0;
+          recs.forEach(r => {
+            const tot = r.cycle_total_ms || ((r.cycle_measure_ms || 0) + (r.cycle_wifi_ms || 0) + (r.cycle_ip_ms || 0) + (r.cycle_upload_ms || 0));
+            if (tot >= maxTotal) {
+              maxTotal = tot;
+              worst = r;
+            }
+          });
+          return worst;
+        });
 
         return {
           labels,
-          measureMs: sortedKeys.map(k => avg(buckets[k].measure)),
-          wifiMs: sortedKeys.map(k => avg(buckets[k].wifi)),
-          ipMs: sortedKeys.map(k => avg(buckets[k].ip)),
-          dnsMs: sortedKeys.map(k => avg(buckets[k].dns)),
-          tcpMs: sortedKeys.map(k => avg(buckets[k].tcp)),
-          tlsMs: sortedKeys.map(k => avg(buckets[k].tls)),
-          postMs: sortedKeys.map(k => avg(buckets[k].post)),
-          uploadMs: sortedKeys.map(k => avg(buckets[k].upload)),
-          timedRecords: dataset
+          measureMs: worstRecords.map(r => r.cycle_measure_ms || 0),
+          wifiMs: worstRecords.map(r => r.cycle_wifi_ms || 0),
+          ipMs: worstRecords.map(r => r.cycle_ip_ms || 0),
+          dnsMs: worstRecords.map(r => r.cycle_dns_ms || 0),
+          tcpMs: worstRecords.map(r => r.cycle_tcp_ms || 0),
+          tlsMs: worstRecords.map(r => r.cycle_tls_ms || 0),
+          postMs: worstRecords.map(r => (r.cycle_post_ms || 0) + (r.cycle_server_ms || 0)),
+          uploadMs: worstRecords.map(r => r.cycle_upload_ms || 0),
+          timedRecords: worstRecords
         };
       }
 
@@ -1712,6 +1831,17 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         // Sun inside closed container can reach 55°C - 62°C!
         const tempC = Number((28 + Math.sin(((hour - 9) / 24) * 2 * Math.PI) * 26 + (Math.random() * 0.8)).toFixed(1));
 
+        // Simulate RF monitor data across 2.4 GHz spectrum & BLE
+        const busiestCh = (i % 4 === 0) ? 6 : (i % 3 === 0 ? 1 : (i % 2 === 0 ? 11 : 3));
+        const maxPkts = Math.round(40 + 210 * Math.sin((hour / 24) * 2 * Math.PI) + Math.random() * 60);
+        const pkts = Math.max(12, maxPkts);
+        const bleDevs = Math.max(2, Math.round(4 + 8 * Math.sin(((hour - 3) / 24) * 2 * Math.PI) + Math.random() * 4));
+        const chArray = new Array(14).fill(0);
+        for (let c = 1; c <= 13; c++) {
+          if (c === busiestCh) chArray[c] = pkts;
+          else chArray[c] = Math.round(pkts * (0.05 + 0.35 * Math.random()));
+        }
+
         records.push({
           timestamp: time.toISOString(),
           solar_mv: solarMv,
@@ -1728,6 +1858,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           cycle_upload_ms: 380 + Math.round(Math.random() * 90),
           cycle_total_ms: 1350 + Math.round(Math.random() * 250),
           cycle_http_code: 200,
+          wifi_channels_json: JSON.stringify(chArray),
+          wifi_busiest_channel: busiestCh,
+          wifi_max_packets: pkts,
+          ble_unique_devices: bleDevs,
           raw_payload: JSON.stringify({
             ina3221: {
               ch1_solar: { voltage_v: solarMv / 1000, current_ma: solarMv > 1000 ? 320.5 : 0, power_mw: solarMv > 1000 ? (solarMv / 1000 * 320.5) : 0 },
@@ -1740,8 +1874,419 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       return records;
     }
 
+    // ==========================================
+    // RF & BLE MONITOR HEATMAP ENGINE
+    // ==========================================
+    let currentRfPalette = "amber";
+    let currentRfView = "30m";
+    let isRfCollapsed = false;
+    let cachedRfRecords = [];
+    let rfCanvasInitialized = false;
+    let rfGridMeta = null;
+
+    const RF_PALETTES = {
+      inferno: [
+        [0.0, [0, 0, 4]],
+        [0.2, [50, 10, 94]],
+        [0.4, [120, 28, 109]],
+        [0.6, [187, 55, 84]],
+        [0.8, [237, 105, 37]],
+        [1.0, [252, 255, 164]]
+      ],
+      viridis: [
+        [0.0, [68, 1, 84]],
+        [0.25, [59, 82, 139]],
+        [0.5, [33, 145, 140]],
+        [0.75, [94, 201, 98]],
+        [1.0, [253, 231, 37]]
+      ],
+      turbo: [
+        [0.0, [48, 18, 59]],
+        [0.25, [40, 187, 236]],
+        [0.5, [162, 252, 60]],
+        [0.75, [251, 128, 34]],
+        [1.0, [122, 4, 3]]
+      ],
+      amber: [
+        [0.0, [22, 18, 12]],
+        [0.25, [120, 53, 15]],
+        [0.5, [217, 119, 6]],
+        [0.75, [251, 191, 36]],
+        [1.0, [254, 240, 138]]
+      ]
+    };
+
+    function interpolatePalette(t, paletteKey) {
+      t = Math.max(0, Math.min(1, t));
+      const stops = RF_PALETTES[paletteKey] || RF_PALETTES.amber;
+      for (let i = 0; i < stops.length - 1; i++) {
+        const [p0, c0] = stops[i];
+        const [p1, c1] = stops[i + 1];
+        if (t >= p0 && t <= p1) {
+          const f = (t - p0) / (p1 - p0);
+          const r = Math.round(c0[0] + f * (c1[0] - c0[0]));
+          const g = Math.round(c0[1] + f * (c1[1] - c0[1]));
+          const b = Math.round(c0[2] + f * (c1[2] - c0[2]));
+          return \`rgb(\${r},\${g},\${b})\`;
+        }
+      }
+      const last = stops[stops.length - 1][1];
+      return \`rgb(\${last[0]},\${last[1]},\${last[2]})\`;
+    }
+
+    function toggleRfMonitor(event) {
+      if (event) event.stopPropagation();
+      isRfCollapsed = !isRfCollapsed;
+      const body = document.getElementById("rf-monitor-body");
+      const btn = document.getElementById("rf-collapse-btn");
+      if (body) body.style.display = isRfCollapsed ? "none" : "block";
+      if (btn) btn.classList.toggle("collapsed", isRfCollapsed);
+      if (!isRfCollapsed) {
+        renderRfHeatmap(cachedRfRecords, currentRfView);
+      }
+    }
+
+    function changeRfPalette(palette) {
+      currentRfPalette = palette;
+      renderRfHeatmap(cachedRfRecords, currentRfView);
+    }
+
+    function switchRfView(view) {
+      currentRfView = view;
+      const buttons = document.querySelectorAll("#rf-view-toggle button");
+      buttons.forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-rf-view") === view);
+      });
+      renderRfHeatmap(cachedRfRecords, currentRfView);
+    }
+
+    function updateRfLegend(minVal, maxVal) {
+      const legendEl = document.getElementById("rf-legend");
+      if (!legendEl) return;
+      const gradStops = [];
+      for (let i = 0; i <= 8; i++) {
+        const t = i / 8;
+        gradStops.push(\`\${interpolatePalette(t, currentRfPalette)} \${t * 100}%\`);
+      }
+      legendEl.innerHTML = \`
+        <span style="font-size:0.7rem; color:var(--text-muted);">\${minVal} pkts</span>
+        <div style="width: 100px; height: 8px; border-radius: 4px; background: linear-gradient(to right, \${gradStops.join(", ")}); border: 1px solid var(--border);"></div>
+        <span style="font-size:0.7rem; color:var(--text-muted);">\${maxVal} pkts</span>
+      \`;
+    }
+
+    function renderRfHeatmap(records, view = "30m") {
+      cachedRfRecords = records || [];
+      if (isRfCollapsed) return;
+
+      const canvas = document.getElementById("rfHeatmapCanvas");
+      const container = document.getElementById("rf-heatmap-container");
+      if (!canvas || !container) return;
+
+      const now = Date.now();
+      const numRows = 14; // Rows 0..12: Channels 1..13; Row 13: BLE
+      const rowLabels = [
+        "CH 1", "CH 2", "CH 3", "CH 4", "CH 5", "CH 6", "CH 7",
+        "CH 8", "CH 9", "CH 10", "CH 11", "CH 12", "CH 13", "BLE"
+      ];
+
+      let numCols = 48;
+      let colLabels = [];
+      let cellData = [];
+
+      if (view === "30m") {
+        numCols = 48;
+        const slotDuration = 30 * 60 * 1000;
+        const startCutoff = now - 24 * 60 * 60 * 1000;
+
+        for (let c = 0; c < numCols; c++) {
+          const slotStart = startCutoff + c * slotDuration;
+          const slotEnd = slotStart + slotDuration;
+          const d = new Date(slotStart);
+          colLabels.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+
+          const slotRecs = cachedRfRecords.filter(r => {
+            const t = new Date(r.timestamp).getTime();
+            return t >= slotStart && t < slotEnd;
+          });
+
+          cellData[c] = [];
+          for (let r = 0; r < numRows; r++) {
+            let maxVal = 0;
+            if (r < 13) {
+              const ch = r + 1;
+              slotRecs.forEach(rec => {
+                let pkts = 0;
+                if (rec.wifi_channels_json) {
+                  try {
+                    const arr = typeof rec.wifi_channels_json === "string" ? JSON.parse(rec.wifi_channels_json) : rec.wifi_channels_json;
+                    pkts = arr[ch] || 0;
+                  } catch (e) {}
+                } else if (rec.wifi_busiest_channel === ch) {
+                  pkts = rec.wifi_max_packets || 0;
+                }
+                if (pkts > maxVal) maxVal = pkts;
+              });
+            } else {
+              slotRecs.forEach(rec => {
+                const ble = rec.ble_unique_devices || 0;
+                if (ble > maxVal) maxVal = ble;
+              });
+            }
+            cellData[c][r] = {
+              val: maxVal,
+              timeLabel: colLabels[c],
+              rowLabel: rowLabels[r],
+              isBle: r === 13
+            };
+          }
+        }
+      } else {
+        // 7-Day View
+        numCols = 7;
+        const dayDuration = 24 * 60 * 60 * 1000;
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        const endCutoff = today.getTime();
+        const startCutoff = endCutoff - 7 * dayDuration;
+
+        for (let c = 0; c < numCols; c++) {
+          const slotStart = startCutoff + c * dayDuration;
+          const slotEnd = slotStart + dayDuration;
+          const d = new Date(slotStart);
+          const dayName = d.toLocaleDateString([], { weekday: "short", month: "numeric", day: "numeric" });
+          colLabels.push(dayName);
+
+          const dayRecs = cachedRfRecords.filter(r => {
+            const t = new Date(r.timestamp).getTime();
+            return t >= slotStart && t < slotEnd;
+          });
+
+          cellData[c] = [];
+          for (let r = 0; r < numRows; r++) {
+            let maxVal = 0;
+            if (r < 13) {
+              const ch = r + 1;
+              dayRecs.forEach(rec => {
+                let pkts = 0;
+                if (rec.wifi_channels_json) {
+                  try {
+                    const arr = typeof rec.wifi_channels_json === "string" ? JSON.parse(rec.wifi_channels_json) : rec.wifi_channels_json;
+                    pkts = arr[ch] || 0;
+                  } catch (e) {}
+                } else if (rec.wifi_busiest_channel === ch) {
+                  pkts = rec.wifi_max_packets || 0;
+                }
+                if (pkts > maxVal) maxVal = pkts;
+              });
+            } else {
+              dayRecs.forEach(rec => {
+                const ble = rec.ble_unique_devices || 0;
+                if (ble > maxVal) maxVal = ble;
+              });
+            }
+            cellData[c][r] = {
+              val: maxVal,
+              timeLabel: dayName,
+              rowLabel: rowLabels[r],
+              isBle: r === 13
+            };
+          }
+        }
+      }
+
+      // Compute summary statistics
+      let globalMaxPkts = 0;
+      let globalMaxBle = 0;
+      const chTotals = new Array(14).fill(0);
+
+      for (let c = 0; c < numCols; c++) {
+        for (let r = 0; r < numRows; r++) {
+          const val = cellData[c][r].val;
+          if (r < 13) {
+            chTotals[r + 1] += val;
+            if (val > globalMaxPkts) globalMaxPkts = val;
+          } else {
+            if (val > globalMaxBle) globalMaxBle = val;
+          }
+        }
+      }
+
+      let busiestCh = 1;
+      let maxChSum = -1;
+      let cleanestCh = 1;
+      let minChSum = Infinity;
+      for (let ch = 1; ch <= 13; ch++) {
+        if (chTotals[ch] > maxChSum) {
+          maxChSum = chTotals[ch];
+          busiestCh = ch;
+        }
+        if (chTotals[ch] < minChSum) {
+          minChSum = chTotals[ch];
+          cleanestCh = ch;
+        }
+      }
+
+      const elBusiest = document.getElementById("rf-busiest-ch");
+      if (elBusiest) elBusiest.textContent = "CH " + busiestCh;
+      const elMaxPkts = document.getElementById("rf-max-pkts");
+      if (elMaxPkts) elMaxPkts.textContent = (globalMaxPkts || 0) + " pkts";
+      const elBle = document.getElementById("rf-ble-count");
+      if (elBle) elBle.textContent = (globalMaxBle || 0) + " devs";
+      const elCleanest = document.getElementById("rf-cleanest-ch");
+      if (elCleanest) elCleanest.textContent = "CH " + cleanestCh;
+
+      updateRfLegend(0, globalMaxPkts > 0 ? globalMaxPkts : 100);
+
+      // Render to Canvas
+      const dpr = window.devicePixelRatio || 1;
+      const width = container.clientWidth || 800;
+      const height = 320;
+
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = width + "px";
+      canvas.style.height = height + "px";
+
+      const ctx = canvas.getContext("2d");
+      ctx.scale(dpr, dpr);
+
+      // Clear
+      ctx.fillStyle = "#0d1117";
+      ctx.fillRect(0, 0, width, height);
+
+      const margin = { left: 45, right: 15, top: 12, bottom: 26 };
+      const plotWidth = width - margin.left - margin.right;
+      const plotHeight = height - margin.top - margin.bottom;
+
+      const gapX = view === "30m" ? 1.5 : 3.0;
+      const gapY = 1.5;
+      const cellW = (plotWidth - (numCols - 1) * gapX) / numCols;
+      const cellH = (plotHeight - (numRows - 1) * gapY) / numRows;
+
+      rfGridMeta = {
+        margin,
+        cellW,
+        cellH,
+        gapX,
+        gapY,
+        numCols,
+        numRows,
+        cellData,
+        width,
+        height
+      };
+
+      const scaleNorm = Math.max(10, globalMaxPkts, globalMaxBle * 15);
+
+      for (let c = 0; c < numCols; c++) {
+        for (let r = 0; r < numRows; r++) {
+          const item = cellData[c][r];
+          const x = margin.left + c * (cellW + gapX);
+          const y = margin.top + r * (cellH + gapY);
+
+          if (item.val === 0) {
+            ctx.fillStyle = "#161b22";
+            ctx.fillRect(x, y, cellW, cellH);
+          } else {
+            const effectiveVal = item.isBle ? item.val * 15 : item.val;
+            const t = Math.log(1 + effectiveVal) / Math.log(1 + scaleNorm);
+            ctx.fillStyle = interpolatePalette(t, currentRfPalette);
+            ctx.fillRect(x, y, cellW, cellH);
+          }
+        }
+      }
+
+      // Draw Row Labels (Y-Axis)
+      ctx.font = "10px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+
+      for (let r = 0; r < numRows; r++) {
+        const y = margin.top + r * (cellH + gapY) + cellH / 2;
+        ctx.fillStyle = (r === 13) ? "#38bdf8" : "#8b949e";
+        ctx.fillText(rowLabels[r], margin.left - 6, y);
+      }
+
+      // Draw Column Labels (X-Axis)
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillStyle = "#8b949e";
+
+      if (view === "30m") {
+        for (let c = 0; c < numCols; c += 6) {
+          const x = margin.left + c * (cellW + gapX) + cellW / 2;
+          ctx.fillText(colLabels[c], x, margin.top + plotHeight + 6);
+        }
+      } else {
+        for (let c = 0; c < numCols; c++) {
+          const x = margin.left + c * (cellW + gapX) + cellW / 2;
+          ctx.fillText(colLabels[c], x, margin.top + plotHeight + 6);
+        }
+      }
+
+      if (!rfCanvasInitialized) {
+        initRfCanvasListeners(canvas);
+        rfCanvasInitialized = true;
+      }
+    }
+
+    function initRfCanvasListeners(canvas) {
+      const tooltip = document.getElementById("rfHeatmapTooltip");
+      const container = document.getElementById("rf-heatmap-container");
+
+      canvas.addEventListener("mousemove", (e) => {
+        if (!rfGridMeta) return;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const { margin, cellW, cellH, gapX, gapY, numCols, numRows, cellData } = rfGridMeta;
+
+        if (
+          mouseX >= margin.left &&
+          mouseX <= margin.left + numCols * (cellW + gapX) &&
+          mouseY >= margin.top &&
+          mouseY <= margin.top + numRows * (cellH + gapY)
+        ) {
+          const col = Math.floor((mouseX - margin.left) / (cellW + gapX));
+          const row = Math.floor((mouseY - margin.top) / (cellH + gapY));
+
+          if (col >= 0 && col < numCols && row >= 0 && row < numRows) {
+            const item = cellData[col][row];
+            if (tooltip) {
+              const unit = item.isBle ? "devices" : "pkts/s";
+              tooltip.innerHTML = \`
+                <div style="font-weight:600; color:\${item.isBle ? '#38bdf8' : '#fbbf24'};">\${item.rowLabel}</div>
+                <div>Time: \${item.timeLabel}</div>
+                <div>Activity: <b>\${item.val}</b> \${unit}</div>
+              \`;
+              tooltip.style.display = "block";
+              const ttLeft = Math.min(container.clientWidth - 150, mouseX + 12);
+              const ttTop = Math.max(10, mouseY - 40);
+              tooltip.style.left = ttLeft + "px";
+              tooltip.style.top = ttTop + "px";
+            }
+            return;
+          }
+        }
+        if (tooltip) tooltip.style.display = "none";
+      });
+
+      canvas.addEventListener("mouseleave", () => {
+        if (tooltip) tooltip.style.display = "none";
+      });
+
+      window.addEventListener("resize", () => {
+        if (!isRfCollapsed && cachedRfRecords.length > 0) {
+          renderRfHeatmap(cachedRfRecords, currentRfView);
+        }
+      });
+    }
+
     window.addEventListener("DOMContentLoaded", init);
   </script>
 </body>
-</html>`;
+</html>
+`;
 }

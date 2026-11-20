@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-11-20
+
+### Fixed & Added
+- **Eliminated 8-Second Socket Idle Lag**:
+  - Replaced blocking `Stream::readString()` in `api_client.h` with header `Content-Length` parsing and exact byte reading.
+  - Active telemetry cycle latency slashed from ~9,200 ms to ~1,100 ms (an 88% reduction in active radio time).
+- **Four Structured Station Operational Modes**:
+  1. **Low Power (`mode 0`)**: Deep sleep (~10–15 µA), 10-minute ADC/INA3221 sampling to RTC Slow Memory (with ULP coprocessor state machine support), 1-hour Wi-Fi burst uploading all 6 buffered samples, 24-hour daily OTA checks.
+  2. **Active (`mode 1`)**: Light sleep, 1-minute sensor sampling into SRAM buffers, 10-minute arithmetic averaging with D1 upload, hourly OTA checks.
+  3. **Verbose (`mode 2`)**: Light sleep with 1-min sample / 10-min upload schedule, featuring real-time diagnostic UART serial logging every minute.
+  4. **Monitor (`mode 3`)**: Light sleep with 1-min sampling, 10-min upload, and promiscuous 802.11 RF sniffer across channels 1..13 (and dual-band 5 GHz on ESP32-C5) with 1.0s dwell time per channel + concurrent BLE device density estimation.
+- **Collapsible RF Monitor Heatmap**:
+  - Interactive HTML5 canvas heatmap tracking Wi-Fi channels 1–13 and Bluetooth Low Energy activity.
+  - 4 Selectable Color Schemes: **Inferno**, **Viridis**, **Turbo / Rainbow**, and **Amber / Solar**.
+  - Dual View Modes: **Today (30-Minute Slots)** displaying peak activity in 48 intervals, and **7-Day Trend** displaying daily maximums.
+  - High-DPI crisp rendering, interactive hover tooltips, visual gradient legend, and summary KPI grid (Busiest Channel, Peak Wi-Fi Activity, Max BLE Devices, Cleanest Channel).
+- **Edge Execution & Telemetry Roundtrip Benchmarks**:
+  - Renamed benchmark section to "Edge Execution & Telemetry Roundtrip Benchmarks".
+  - Timeframe aggregations:
+    - 1 Day: 24 hourly submissions (Low Power) or 144 submissions (Active/Verbose/Monitor).
+    - 1 Week: 168 hourly slots, selecting the peak worst value each hour.
+    - 1 Month: 30 daily averages.
+- **Architectural Reference**:
+  - Authored [ADR 0006](docs/adr/0006-four-tier-station-power-and-monitoring-modes.md) detailing the four-tier power and monitoring framework.
+- **Firmware & Cloudflare Worker Releases**:
+  - Released **Firmware v1.1.2-canary** for ESP32, ESP32-S3, and ESP32-C5/C6.
+  - Deployed **Website v1.1.2** to Cloudflare Worker edge SSR (`solar.kreier.workers.dev`) and static mirror (`docs/index.html` and `docs/404.html`).
+
+
 ## [1.1.1] - 2026-11-20
 
 ### Fixed & Added

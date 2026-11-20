@@ -54,6 +54,13 @@ export interface BufferedBatchSample {
   ina3221?: Ina3221Metrics;
 }
 
+export interface MonitorMetrics {
+  wifi_channels?: number[];
+  wifi_busiest_channel?: number;
+  wifi_max_packets?: number;
+  ble_unique_devices?: number;
+}
+
 export interface TelemetryPayload {
   station_id: string;
   location?: string;
@@ -73,6 +80,7 @@ export interface TelemetryPayload {
     pin35?: number;
   };
   ina3221?: Ina3221Metrics;
+  monitor?: MonitorMetrics;
   batch_samples?: BufferedBatchSample[];
   prev_cycle?: CycleMetrics;
   current_cycle?: CycleMetrics;
@@ -120,5 +128,9 @@ export interface MeasurementRecord {
   cycle_upload_ms: number | null;
   cycle_total_ms: number | null;
   cycle_http_code: number | null;
+  wifi_max_packets?: number | null;
+  wifi_busiest_channel?: number | null;
+  ble_unique_devices?: number | null;
+  wifi_channels_json?: string | null;
   raw_payload: string | null;
 }

@@ -132,27 +132,38 @@ voltage[3] = int((voltage[3]) * 1.65 + 307);
 float lipo_v = voltage[3] / 1000.0f;
 ```
 
-### Power Modes & Energy Management
-1. **Minimal Energy Consumption (Mode 0)**:
-   - True Deep Sleep (`esp_deep_sleep_start()`), consuming ~10–15 µA.
-   - Wakes up every 10 minutes, samples ADC and INA3221 in ~15 ms, records into RTC Slow Memory (`RTC_DATA_ATTR`).
-   - Only once an hour (every 6th cycle) connects to Wi-Fi and uploads the accumulated batch payload.
-   - Wi-Fi Fast-Connect: Caches BSSID and Channel in RTC memory to bypass full AP scan.
-2. **Balanced Mode (Mode 1)**:
-   - Measures and performs immediate upload every 10 minutes.
+### Four Station Operational Modes (v1.1.2)
+1. **Low Power (`mode 0`)**:
+   - Deep Sleep (`esp_deep_sleep_start()`), consuming ~10–15 µA.
+   - Wakes every 10 minutes to sample ADC and INA3221 in ~15 ms; writes sample directly into RTC Slow Memory (`RTC_DATA_ATTR`). Classic ESP32 can leverage the ULP coprocessor state machine.
+   - Main CPU wakes once per hour (every 6th cycle) to fire an optimized ~1.1-second Wi-Fi burst uploading all 6 batched records and execution latencies.
+   - Daily firmware OTA verification (every 144 cycles / 24 hours).
+2. **Active (`mode 1`)**:
+   - Light Sleep (`esp_light_sleep_start()`), preserving standard SRAM without RTC constraints.
+   - Samples sensors every 1 minute into rolling buffers. Every 10 minutes computes arithmetic mean across samples and transmits telemetry.
+   - Hourly OTA check.
+3. **Verbose (`mode 2`)**:
+   - Light Sleep with same 1-min sample / 10-min upload schedule as Active.
+   - Active UART serial logging on every 1-minute tick for bench diagnostics and hardware bring-up.
+4. **Monitor (`mode 3`)**:
+   - Light Sleep with 1-min sampling and 10-min upload cadence.
+   - Promiscuous 802.11 RF sniffer sweeps 2.4 GHz channels 1..13 (and 5 GHz on ESP32-C5) with 1.0s dwell time per channel; scans concurrent BLE unique devices.
+   - Aggregates channel distribution and max packet metrics, displaying on Web UI interactive Heatmap.
 
 ---
 
 ## 4. Execution Cycle Timing & Benchmarking
 
-Every cycle measures key milestone durations in milliseconds:
-1. `t_boot`: Hardware wake and sensor initialization.
-2. `t_measure`: 100x multisampling on pins 32, 34, 35.
-3. `t_wifi_connect`: Duration from `WiFi.begin()` until `WL_CONNECTED`.
-4. `t_ip_obtained`: Time until valid DHCP IP address is acquired.
-5. `t_upload_start`: Initiation of TLS handshake and HTTP POST.
-6. `t_upload_confirm`: Receipt and verification of HTTP 200 response.
-7. `total_cycle_ms`: Total active duration from wakeup to entering light sleep.
+Every cycle measures 8 fine-grained milestone durations in milliseconds:
+1. `cycle_boot_ms`: Hardware wake and sensor initialization.
+2. `cycle_measure_ms`: Sensor conversion (ADC or INA3221).
+3. `cycle_wifi_ms`: Duration from `WiFi.begin()` until `WL_CONNECTED`.
+4. `cycle_ip_ms`: Time until valid DHCP IP address is acquired.
+5. `cycle_dns_ms`: DNS name resolution for edge worker endpoint.
+6. `cycle_tcp_ms`: TCP socket three-way handshake.
+7. `cycle_tls_ms`: TLS cryptographic handshake (SNI).
+8. `cycle_post_ms` / `cycle_server_ms`: Request serialization and HTTP 200 response ingestion (exact byte reading via `Content-Length`, eliminating idle timeouts).
+9. `cycle_total_ms`: Total active duration from wakeup to sleep (~1.1 seconds on static IP / cached BSSID).
 
 ### Previous Cycle Payload Handoff
 To avoid circular timing dependencies, the complete benchmark of the **preceding cycle** is retained in RTC fast memory (`RTC_DATA_ATTR`) and included in the current cycle's payload:

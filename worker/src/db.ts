@@ -142,13 +142,17 @@ export class Database {
            temp_c, temp_mv, raw_pin32, raw_pin34, raw_pin35, boot_count,
            cycle_boot_ms, cycle_measure_ms, cycle_wifi_ms, cycle_ip_ms,
            cycle_dns_ms, cycle_tcp_ms, cycle_tls_ms, cycle_post_ms, cycle_server_ms,
-           cycle_upload_ms, cycle_total_ms, cycle_http_code, raw_payload
+           cycle_upload_ms, cycle_total_ms, cycle_http_code,
+           wifi_max_packets, wifi_busiest_channel, ble_unique_devices, wifi_channels_json,
+           raw_payload
          ) VALUES (
            ?1, ?2, ?3, ?4, ?5, ?6,
            ?7, ?8, ?9, ?10, ?11, ?12,
            ?13, ?14, ?15, ?16,
            ?17, ?18, ?19, ?20, ?21,
-           ?22, ?23, ?24, ?25
+           ?22, ?23, ?24,
+           ?25, ?26, ?27, ?28,
+           ?29
          )`
       )
       .bind(
@@ -176,6 +180,10 @@ export class Database {
         uploadMs,
         totalMs,
         httpCode,
+        payload.monitor?.wifi_max_packets ?? 0,
+        payload.monitor?.wifi_busiest_channel ?? 0,
+        payload.monitor?.ble_unique_devices ?? 0,
+        payload.monitor?.wifi_channels ? JSON.stringify(payload.monitor.wifi_channels) : null,
         JSON.stringify(payload)
       )
       .run();

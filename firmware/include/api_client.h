@@ -9,9 +9,10 @@
 #include "ina3221_reader.h"
 #include "cycle_timer.h"
 #include "app_config.h"
+#include "monitor_manager.h"
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.1.1-canary"
+#define FIRMWARE_VERSION "1.1.2-canary"
 #endif
 
 struct BufferedSample {
@@ -153,7 +154,8 @@ public:
     static bool uploadTelemetry(const String &workerUrl, const String &deviceToken,
                                 const SolarConfig &config, const AdcReadings &readings,
                                 const Ina3221Readings &inaReadings, CycleTimer &timer,
-                                const BufferedSample *batchSamples = nullptr, uint8_t batchCount = 0) {
+                                const BufferedSample *batchSamples = nullptr, uint8_t batchCount = 0,
+                                const MonitorMetrics *monitor = nullptr) {
         if (WiFi.status() != WL_CONNECTED) {
             Serial.println(F("[API] Cannot upload: WiFi not connected"));
             return false;
@@ -249,6 +251,18 @@ public:
             ch3["resistance_ohm"] = serialized(String(inaReadings.ch3_load_res_ohm, 1));
         }
 
+        // RF Monitor Mode (Wi-Fi Channel Occupancy & BLE Unique Count)
+        if (monitor != nullptr && monitor->present) {
+            JsonObject monObj = doc["monitor"].to<JsonObject>();
+            JsonArray chArr = monObj["wifi_channels"].to<JsonArray>();
+            for (uint8_t c = 1; c <= 13; c++) {
+                chArr.add(monitor->wifi_channels[c]);
+            }
+            monObj["wifi_busiest_channel"] = monitor->wifi_busiest_channel;
+            monObj["wifi_max_packets"] = monitor->wifi_max_packets;
+            monObj["ble_unique_devices"] = monitor->ble_unique_count;
+        }
+
         // Batch samples from RTC memory (for Minimal Energy 1-hour upload mode)
         if (batchSamples != nullptr && batchCount > 0) {
             JsonArray batchArr = doc["batch_samples"].to<JsonArray>();
@@ -319,7 +333,7 @@ public:
 
         // Step 5: Server Execution & Response Latency
         uint32_t t_server_start = millis();
-        while (secClient.connected() && !secClient.available() && (millis() - t_server_start < 8000)) {
+        while (secClient.connected() && !secClient.available() && (millis() - t_server_start < 4000)) {
             delay(5);
         }
         uint32_t server_ms = millis() - t_server_start;
@@ -331,13 +345,24 @@ public:
             if (statusLine.startsWith("HTTP/1.")) {
                 httpCode = statusLine.substring(9, 12).toInt();
             }
-            // Skip headers to read body
+            // Parse headers and extract Content-Length
+            int contentLength = -1;
             while (secClient.available()) {
                 String line = secClient.readStringUntil('\n');
+                if (line.startsWith("Content-Length:") || line.startsWith("content-length:")) {
+                    contentLength = line.substring(15).toInt();
+                }
                 if (line == "\r" || line.length() == 0) break;
             }
-            if (secClient.available()) {
-                respBody = secClient.readString();
+            // Read response body without timeout delays
+            if (contentLength > 0) {
+                respBody.reserve(contentLength);
+                for (int i = 0; i < contentLength && secClient.connected(); i++) {
+                    int c = secClient.read();
+                    if (c >= 0) respBody += (char)c;
+                }
+            } else if (secClient.available()) {
+                respBody = secClient.readStringUntil('\n');
             }
         }
         secClient.stop();

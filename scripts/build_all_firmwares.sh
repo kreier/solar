@@ -61,15 +61,15 @@ build_target "esp32s3" "esp32s3" "1.0.2" 0x10000 0x0
 build_target "esp32c5" "esp32c6" "1.0.2" 0x10000 0x0
 
 echo "=========================================="
-echo " BUILDING FIRMWARE v1.1.1-canary"
+echo " BUILDING FIRMWARE v1.1.2-canary"
 echo "=========================================="
-build_target "esp32dev" "esp32" "1.1.1-canary" 0x10000 0x1000
-build_target "esp32s3" "esp32s3" "1.1.1-canary" 0x10000 0x0
-build_target "esp32c5" "esp32c6" "1.1.1-canary" 0x10000 0x0
+build_target "esp32dev" "esp32" "1.1.2-canary" 0x10000 0x1000
+build_target "esp32s3" "esp32s3" "1.1.2-canary" 0x10000 0x0
+build_target "esp32c5" "esp32c6" "1.1.2-canary" 0x10000 0x0
 
 # Create C5 convenience alias
-cp "$OUT_DIR/firmware-esp32c6-v1.1.1-canary.bin" "$OUT_DIR/firmware-esp32c5-v1.1.1-canary.bin"
-cp "$OUT_DIR/firmware-esp32c6-merged-v1.1.1-canary.bin" "$OUT_DIR/firmware-esp32c5-merged-v1.1.1-canary.bin"
+cp "$OUT_DIR/firmware-esp32c6-v1.1.2-canary.bin" "$OUT_DIR/firmware-esp32c5-v1.1.2-canary.bin"
+cp "$OUT_DIR/firmware-esp32c6-merged-v1.1.2-canary.bin" "$OUT_DIR/firmware-esp32c5-merged-v1.1.2-canary.bin"
 
 echo "=========================================="
 echo " ALL FIRMWARES BUILT & MERGED SUCCESSFULLY"
