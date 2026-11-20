@@ -21,6 +21,11 @@ export interface CycleMetrics {
   measure_ms?: number;
   wifi_connect_ms?: number;
   ip_obtain_ms?: number;
+  dns_ms?: number;
+  tcp_ms?: number;
+  tls_ms?: number;
+  post_ms?: number;
+  server_ms?: number;
   upload_ms?: number;
   total_cycle_ms?: number;
   http_code?: number;
@@ -107,6 +112,11 @@ export interface MeasurementRecord {
   cycle_measure_ms: number | null;
   cycle_wifi_ms: number | null;
   cycle_ip_ms: number | null;
+  cycle_dns_ms?: number | null;
+  cycle_tcp_ms?: number | null;
+  cycle_tls_ms?: number | null;
+  cycle_post_ms?: number | null;
+  cycle_server_ms?: number | null;
   cycle_upload_ms: number | null;
   cycle_total_ms: number | null;
   cycle_http_code: number | null;

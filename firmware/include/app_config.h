@@ -16,12 +16,14 @@
 #define DEFAULT_PIN_LIPO    3   // ADC1 CH2 (GPIO3)
 #define DEFAULT_PIN_SDA     4   // I2C SDA (GPIO4)
 #define DEFAULT_PIN_SCL     5   // I2C SCL (GPIO5)
+#define DEFAULT_TEMP_SOURCE 1   // Default to on-chip internal sensor on ESP32-S3
 #elif defined(CONFIG_IDF_TARGET_ESP32C5) || defined(CONFIG_IDF_TARGET_ESP32C6) || defined(ARDUINO_ESP32C5_DEV) || defined(ARDUINO_ESP32C6_DEV)
 #define DEFAULT_PIN_TEMP    1   // ADC1 CH1 (GPIO1)
 #define DEFAULT_PIN_SOLAR   2   // ADC1 CH2 (GPIO2)
 #define DEFAULT_PIN_LIPO    3   // ADC1 CH3 (GPIO3)
 #define DEFAULT_PIN_SDA     0   // I2C SDA (GPIO0)
 #define DEFAULT_PIN_SCL     1   // I2C SCL (GPIO1)
+#define DEFAULT_TEMP_SOURCE 0
 #else
 // Classic ESP32
 #define DEFAULT_PIN_TEMP    32
@@ -29,14 +31,13 @@
 #define DEFAULT_PIN_LIPO    35
 #define DEFAULT_PIN_SDA     21
 #define DEFAULT_PIN_SCL     22
+#define DEFAULT_TEMP_SOURCE 0
 #endif
 
-#define DEFAULT_CAL_TEMP_FACTOR   0.83f
-#define DEFAULT_CAL_TEMP_OFFSET   155.0f
-#define DEFAULT_CAL_SOLAR_FACTOR  1.64f
-#define DEFAULT_CAL_SOLAR_OFFSET  315.0f
-#define DEFAULT_CAL_LIPO_FACTOR   1.65f
-#define DEFAULT_CAL_LIPO_OFFSET   307.0f
+// Conversion factors for modern ADC calibration (adc_cali_raw_to_voltage)
+#define DEFAULT_CAL_TEMP_FACTOR   0.10f // 10 mV / °C (millivolt to °C)
+#define DEFAULT_CAL_SOLAR_FACTOR  2.00f // 1k:1k voltage divider (2:1)
+#define DEFAULT_CAL_LIPO_FACTOR   2.00f // 10k:10k voltage divider (2:1)
 
 struct SolarConfig {
     char station_id[32];
@@ -48,6 +49,13 @@ struct SolarConfig {
     char backup_ssid[32];
     char backup_pass[64];
 
+    // Static IP configuration
+    bool use_static_ip;
+    char static_ip[16];
+    char static_gateway[16];
+    char static_subnet[16];
+    char static_dns[16];
+
     // Hardware Pins framework
     uint8_t pin_temp;
     uint8_t pin_solar;
@@ -55,13 +63,16 @@ struct SolarConfig {
     uint8_t pin_sda;
     uint8_t pin_scl;
 
-    // Calibration factors and offsets
+    // Measurement source selection & toggle
+    // 0: External analog pin, 1: Internal ESP32 sensor
+    uint8_t temp_source;
+    bool enable_solar;
+    bool enable_lipo;
+
+    // Calibration conversion factors
     float cal_temp_factor;
-    float cal_temp_offset;
     float cal_solar_factor;
-    float cal_solar_offset;
     float cal_lipo_factor;
-    float cal_lipo_offset;
 
     // Power saving and operational modes
     // 0: Minimal Energy Consumption (Deep Sleep, 10-min measure to RTC, 1-hour batch upload, fast BSSID)
@@ -115,18 +126,29 @@ public:
         String bPass = prefs.getString("bkp_pass", "");
         strlcpy(config.backup_pass, bPass.c_str(), sizeof(config.backup_pass));
 
+        config.use_static_ip = prefs.getBool("use_stat", false);
+        String sIp = prefs.getString("stat_ip", "");
+        strlcpy(config.static_ip, sIp.c_str(), sizeof(config.static_ip));
+        String sGw = prefs.getString("stat_gw", "");
+        strlcpy(config.static_gateway, sGw.c_str(), sizeof(config.static_gateway));
+        String sSn = prefs.getString("stat_sn", "255.255.255.0");
+        strlcpy(config.static_subnet, sSn.c_str(), sizeof(config.static_subnet));
+        String sDns = prefs.getString("stat_dns", "1.1.1.1");
+        strlcpy(config.static_dns, sDns.c_str(), sizeof(config.static_dns));
+
         config.pin_temp  = prefs.getUChar("pin_tmp", DEFAULT_PIN_TEMP);
         config.pin_solar = prefs.getUChar("pin_sol", DEFAULT_PIN_SOLAR);
         config.pin_lipo  = prefs.getUChar("pin_lip", DEFAULT_PIN_LIPO);
         config.pin_sda   = prefs.getUChar("pin_sda", DEFAULT_PIN_SDA);
         config.pin_scl   = prefs.getUChar("pin_scl", DEFAULT_PIN_SCL);
 
+        config.temp_source  = prefs.getUChar("tmp_src", DEFAULT_TEMP_SOURCE);
+        config.enable_solar = prefs.getBool("en_sol", true);
+        config.enable_lipo  = prefs.getBool("en_lip", true);
+
         config.cal_temp_factor  = prefs.getFloat("c_tmp_f", DEFAULT_CAL_TEMP_FACTOR);
-        config.cal_temp_offset  = prefs.getFloat("c_tmp_o", DEFAULT_CAL_TEMP_OFFSET);
         config.cal_solar_factor = prefs.getFloat("c_sol_f", DEFAULT_CAL_SOLAR_FACTOR);
-        config.cal_solar_offset = prefs.getFloat("c_sol_o", DEFAULT_CAL_SOLAR_OFFSET);
         config.cal_lipo_factor  = prefs.getFloat("c_lip_f", DEFAULT_CAL_LIPO_FACTOR);
-        config.cal_lipo_offset  = prefs.getFloat("c_lip_o", DEFAULT_CAL_LIPO_OFFSET);
 
         config.power_mode = prefs.getUChar("pwr_mod", 0); // Default to minimal energy consumption
         config.is_canary   = prefs.getBool("is_can", false);
@@ -151,18 +173,25 @@ public:
         config.backup_ssid[0] = '\0';
         config.backup_pass[0] = '\0';
 
+        config.use_static_ip = false;
+        config.static_ip[0] = '\0';
+        config.static_gateway[0] = '\0';
+        strlcpy(config.static_subnet, "255.255.255.0", sizeof(config.static_subnet));
+        strlcpy(config.static_dns, "1.1.1.1", sizeof(config.static_dns));
+
         config.pin_temp  = DEFAULT_PIN_TEMP;
         config.pin_solar = DEFAULT_PIN_SOLAR;
         config.pin_lipo  = DEFAULT_PIN_LIPO;
         config.pin_sda   = DEFAULT_PIN_SDA;
         config.pin_scl   = DEFAULT_PIN_SCL;
 
+        config.temp_source  = DEFAULT_TEMP_SOURCE;
+        config.enable_solar = true;
+        config.enable_lipo  = true;
+
         config.cal_temp_factor  = DEFAULT_CAL_TEMP_FACTOR;
-        config.cal_temp_offset  = DEFAULT_CAL_TEMP_OFFSET;
         config.cal_solar_factor = DEFAULT_CAL_SOLAR_FACTOR;
-        config.cal_solar_offset = DEFAULT_CAL_SOLAR_OFFSET;
         config.cal_lipo_factor  = DEFAULT_CAL_LIPO_FACTOR;
-        config.cal_lipo_offset  = DEFAULT_CAL_LIPO_OFFSET;
 
         config.power_mode = 0; // Minimal Energy
         config.is_canary = false;
@@ -196,18 +225,25 @@ public:
         prefs.putString("bkp_ssid", config.backup_ssid);
         prefs.putString("bkp_pass", config.backup_pass);
 
+        prefs.putBool("use_stat", config.use_static_ip);
+        prefs.putString("stat_ip", config.static_ip);
+        prefs.putString("stat_gw", config.static_gateway);
+        prefs.putString("stat_sn", config.static_subnet);
+        prefs.putString("stat_dns", config.static_dns);
+
         prefs.putUChar("pin_tmp", config.pin_temp);
         prefs.putUChar("pin_sol", config.pin_solar);
         prefs.putUChar("pin_lip", config.pin_lipo);
         prefs.putUChar("pin_sda", config.pin_sda);
         prefs.putUChar("pin_scl", config.pin_scl);
 
+        prefs.putUChar("tmp_src", config.temp_source);
+        prefs.putBool("en_sol", config.enable_solar);
+        prefs.putBool("en_lip", config.enable_lipo);
+
         prefs.putFloat("c_tmp_f", config.cal_temp_factor);
-        prefs.putFloat("c_tmp_o", config.cal_temp_offset);
         prefs.putFloat("c_sol_f", config.cal_solar_factor);
-        prefs.putFloat("c_sol_o", config.cal_solar_offset);
         prefs.putFloat("c_lip_f", config.cal_lipo_factor);
-        prefs.putFloat("c_lip_o", config.cal_lipo_offset);
 
         prefs.putUChar("pwr_mod", config.power_mode);
         prefs.putBool("is_can", config.is_canary);

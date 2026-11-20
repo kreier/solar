@@ -126,6 +126,11 @@ export class Database {
     const measureMs = prev?.measure_ms ?? cur?.measure_ms ?? null;
     const wifiMs = prev?.wifi_connect_ms ?? cur?.wifi_connect_ms ?? null;
     const ipMs = prev?.ip_obtain_ms ?? cur?.ip_obtain_ms ?? null;
+    const dnsMs = prev?.dns_ms ?? cur?.dns_ms ?? null;
+    const tcpMs = prev?.tcp_ms ?? cur?.tcp_ms ?? null;
+    const tlsMs = prev?.tls_ms ?? cur?.tls_ms ?? null;
+    const postMs = prev?.post_ms ?? cur?.post_ms ?? null;
+    const serverMs = prev?.server_ms ?? cur?.server_ms ?? null;
     const uploadMs = prev?.upload_ms ?? null;
     const totalMs = prev?.total_cycle_ms ?? (uploadMs && wifiMs && measureMs ? (measureMs + wifiMs + (ipMs || 0) + uploadMs) : null);
     const httpCode = prev?.http_code ?? 200;
@@ -136,12 +141,14 @@ export class Database {
            station_id, timestamp, solar_mv, solar_v, lipo_mv, lipo_v,
            temp_c, temp_mv, raw_pin32, raw_pin34, raw_pin35, boot_count,
            cycle_boot_ms, cycle_measure_ms, cycle_wifi_ms, cycle_ip_ms,
+           cycle_dns_ms, cycle_tcp_ms, cycle_tls_ms, cycle_post_ms, cycle_server_ms,
            cycle_upload_ms, cycle_total_ms, cycle_http_code, raw_payload
          ) VALUES (
            ?1, ?2, ?3, ?4, ?5, ?6,
            ?7, ?8, ?9, ?10, ?11, ?12,
            ?13, ?14, ?15, ?16,
-           ?17, ?18, ?19, ?20
+           ?17, ?18, ?19, ?20, ?21,
+           ?22, ?23, ?24, ?25
          )`
       )
       .bind(
@@ -161,6 +168,11 @@ export class Database {
         measureMs,
         wifiMs,
         ipMs,
+        dnsMs,
+        tcpMs,
+        tlsMs,
+        postMs,
+        serverMs,
         uploadMs,
         totalMs,
         httpCode,

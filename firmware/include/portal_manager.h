@@ -12,7 +12,7 @@ public:
     static bool runPortal(SolarConfig &config, AppConfigManager &configMgr, AdcReader &adc,
                           Ina3221Reader &ina, uint32_t timeoutSeconds = 120) {
         WiFi.disconnect(true);
-        WiFi.mode(WIFI_AP);
+        WiFi.mode(WIFI_AP_STA);
 
         String apName = "Solar-Setup";
         if (strlen(config.station_id) > 0) {
@@ -21,6 +21,7 @@ public:
 
         const char *apPass = "12345678";
         bool apOk = WiFi.softAP(apName.c_str(), apPass);
+        (void)apOk;
         IPAddress apIp = WiFi.softAPIP();
 
         Serial.println(F("\n=================================================="));
@@ -37,12 +38,12 @@ public:
         uint32_t remainingMs = timeoutSeconds * 1000;
         uint32_t lastTickMs = millis();
 
+        // 1. Root Setup Page Handler
         server.on("/", HTTP_GET, [&]() {
             AdcReadings readings = adc.readSensors(
                 config.pin_temp, config.pin_solar, config.pin_lipo,
-                config.cal_temp_factor, config.cal_temp_offset,
-                config.cal_solar_factor, config.cal_solar_offset,
-                config.cal_lipo_factor, config.cal_lipo_offset
+                config.temp_source, config.enable_solar, config.enable_lipo,
+                config.cal_temp_factor, config.cal_solar_factor, config.cal_lipo_factor
             );
             Ina3221Readings inaData = ina.read();
 
@@ -64,6 +65,7 @@ public:
             html += F("input,select{width:100%;padding:0.6rem;background:#0d1117;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.95rem;}");
             html += F("input:focus,select:focus{outline:2px solid var(--solar);}.row{display:flex;gap:0.5rem;}.row>div{flex:1;}");
             html += F(".btn{width:100%;padding:0.85rem;margin-top:1.25rem;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;border:none;border-radius:8px;font-size:1.05rem;font-weight:700;cursor:pointer;}");
+            html += F(".btn-sm{width:auto;padding:0.4rem 0.8rem;background:#21262d;color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:0.85rem;cursor:pointer;}");
             html += F(".sub-title{font-size:0.85rem;text-transform:uppercase;color:var(--muted);letter-spacing:0.05em;margin-bottom:0.4rem;font-weight:700;}");
             html += F(".checkbox-label{display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;cursor:pointer;font-weight:400;}");
             html += F(".checkbox-label input{width:auto;}");
@@ -75,11 +77,12 @@ public:
                 html += "<div class='timer-badge' style='background:rgba(245,158,11,0.15);color:var(--solar);'>&#9203; Soft-AP closes in: " + String(remainingSec) + "s (pauses on connect)</div></header>";
             }
 
-            // Live ADC Sensor Readings Card
-            html += F("<div class='card'><div class='sub-title'>Live ADC Sensor Readings</div><div class='live-grid'>");
-            html += "<div class='val-box'><div class='val-num' style='color:#ef4444;'>" + String(readings.temp_c, 1) + "&deg;C</div><div class='val-lbl'>Temp (Pin " + String(config.pin_temp) + ")</div></div>";
-            html += "<div class='val-box'><div class='val-num' style='color:#f59e0b;'>" + String(readings.solar_v, 2) + "V</div><div class='val-lbl'>Solar (Pin " + String(config.pin_solar) + ")</div></div>";
-            html += "<div class='val-box'><div class='val-num' style='color:#10b981;'>" + String(readings.lipo_v, 2) + "V</div><div class='val-lbl'>LiPo (Pin " + String(config.pin_lipo) + ")</div></div>";
+            // Live Sensor Readings Card
+            html += F("<div class='card'><div class='sub-title'>Live Calibrated Sensor Readings</div><div class='live-grid'>");
+            String tempSrcLbl = (config.temp_source == 1) ? "Internal Sensor" : ("Pin " + String(config.pin_temp));
+            html += "<div class='val-box'><div class='val-num' style='color:#ef4444;'>" + String(readings.temp_c, 1) + "&deg;C</div><div class='val-lbl'>Temp (" + tempSrcLbl + ")</div></div>";
+            html += "<div class='val-box'><div class='val-num' style='color:#f59e0b;'>" + (config.enable_solar ? (String(readings.solar_v, 2) + "V") : "Disabled") + "</div><div class='val-lbl'>Solar (Pin " + String(config.pin_solar) + ")</div></div>";
+            html += "<div class='val-box'><div class='val-num' style='color:#10b981;'>" + (config.enable_lipo ? (String(readings.lipo_v, 2) + "V") : "Disabled") + "</div><div class='val-lbl'>LiPo (Pin " + String(config.pin_lipo) + ")</div></div>";
             html += F("</div>");
 
             if (inaData.present) {
@@ -106,11 +109,76 @@ public:
             html += F("<span>Accept Canary Releases (v1.1.0-canary OTA)</span></label>");
             html += F("</div>");
 
-            // 2. INA3221 Sensor Card
+            // 2. Wi-Fi Connectivity & Live Test
+            html += F("<div class='card'><div class='sub-title'>Wi-Fi Connectivity &amp; Test</div>");
+            html += F("<label>Primary Wi-Fi SSID</label>");
+            html += "<input type='text' id='wf_ssid' name='wifi_ssid' value='" + String(config.wifi_ssid) + "' required>";
+            html += F("<label>Primary Wi-Fi Password</label>");
+            html += "<input type='password' id='wf_pass' name='wifi_pass' value='" + String(config.wifi_pass) + "'>";
+
+            html += F("<div style='margin-top:0.75rem;display:flex;align-items:center;gap:0.75rem;'>");
+            html += F("<button type='button' class='btn-sm' onclick='testWifiConnection()'>⚡ Test Connection</button>");
+            html += F("<span id='wifi-test-result' style='font-size:0.85rem;color:var(--muted);'>Not tested</span>");
+            html += F("</div>");
+
+            html += F("<label style='margin-top:1rem;'>Backup Wi-Fi SSID (Optional)</label>");
+            html += "<input type='text' name='bkp_ssid' value='" + String(config.backup_ssid) + "'>";
+            html += F("<label>Backup Wi-Fi Password</label>");
+            html += "<input type='password' name='bkp_pass' value='" + String(config.backup_pass) + "'>";
+
+            // Fixed IP Settings
+            html += F("<label class='checkbox-label' style='margin-top:1rem;'>");
+            html += String("<input type='checkbox' id='use_static_ip' name='use_static_ip' value='1' onchange='toggleStaticFields()'") + (config.use_static_ip ? " checked" : "") + ">";
+            html += F("<span>Set Fixed (Static) IP Address</span></label>");
+
+            String staticStyle = config.use_static_ip ? "" : "style='display:none;'";
+            html += "<div id='static_ip_fields' " + staticStyle + ">";
+            html += F("<div class='row'>");
+            html += "<div><label>Static IP</label><input type='text' id='stat_ip' name='stat_ip' value='" + String(config.static_ip) + "' placeholder='192.168.1.150'></div>";
+            html += "<div><label>Gateway</label><input type='text' id='stat_gw' name='stat_gw' value='" + String(config.static_gateway) + "' placeholder='192.168.1.1'></div>";
+            html += F("</div><div class='row'>");
+            html += "<div><label>Subnet Mask</label><input type='text' id='stat_sn' name='stat_sn' value='" + String(config.static_subnet) + "' placeholder='255.255.255.0'></div>";
+            html += "<div><label>DNS Server</label><input type='text' id='stat_dns' name='stat_dns' value='" + String(config.static_dns) + "' placeholder='1.1.1.1'></div>";
+            html += F("</div></div></div>");
+
+            // 3. Sensor Input Source & Modern ADC Calibration
+            html += F("<div class='card'><div class='sub-title'>Sensor Inputs &amp; Conversion Factors</div>");
+            
+            // Temperature source
+            html += F("<label>Temperature Source</label>");
+            html += F("<select name='temp_source'>");
+            html += String("<option value='1'") + (config.temp_source == 1 ? " selected" : "") + ">Internal ESP32 On-Chip Sensor (Recommended for ESP32-S3)</option>";
+            html += String("<option value='0'") + (config.temp_source == 0 ? " selected" : "") + ">External Analog Pin (10 mV/°C LM35 / MCP9700)</option>";
+            html += F("</select>");
+
+            html += F("<div class='row'>");
+            html += "<div><label>Temp Pin</label><input type='number' name='pin_temp' value='" + String(config.pin_temp) + "'></div>";
+            html += "<div><label>Temp Factor (mV &rarr; &deg;C)</label><input type='text' name='c_tmp_f' value='" + String(config.cal_temp_factor, 3) + "' placeholder='0.100'></div>";
+            html += F("</div>");
+
+            // Solar Voltage
+            html += F("<label class='checkbox-label' style='margin-top:0.75rem;'>");
+            html += String("<input type='checkbox' name='enable_solar' value='1'") + (config.enable_solar ? " checked" : "") + ">";
+            html += F("<span>Enable Solar Panel Voltage Collection</span></label>");
+            html += F("<div class='row'>");
+            html += "<div><label>Solar Pin</label><input type='number' name='pin_solar' value='" + String(config.pin_solar) + "'></div>";
+            html += "<div><label>Solar Factor (Divider x2)</label><input type='text' name='c_sol_f' value='" + String(config.cal_solar_factor, 2) + "' placeholder='2.00'></div>";
+            html += F("</div>");
+
+            // LiPo Voltage
+            html += F("<label class='checkbox-label' style='margin-top:0.75rem;'>");
+            html += String("<input type='checkbox' name='enable_lipo' value='1'") + (config.enable_lipo ? " checked" : "") + ">";
+            html += F("<span>Enable LiPo Battery Voltage Collection</span></label>");
+            html += F("<div class='row'>");
+            html += "<div><label>LiPo Pin</label><input type='number' name='pin_lipo' value='" + String(config.pin_lipo) + "'></div>";
+            html += "<div><label>LiPo Factor (Divider x2)</label><input type='text' name='c_lip_f' value='" + String(config.cal_lipo_factor, 2) + "' placeholder='2.00'></div>";
+            html += F("</div></div>");
+
+            // 4. INA3221 Sensor Card
             html += F("<div class='card'><div class='sub-title'>INA3221 Current/Power Monitor (I2C)</div>");
             html += F("<label class='checkbox-label'>");
             html += String("<input type='checkbox' name='has_ina' value='1'") + (config.has_ina3221 ? " checked" : "") + ">";
-            html += F("<span>Enable INA3221 Monitor (CH1 Solar, CH3 Load)</span></label>");
+            html += F("<span>Enable INA3221 (CH1 Measures Solar Bus &amp; Current, CH3 Load)</span></label>");
 
             html += F("<div class='row'>");
             html += "<div><label>I2C SDA Pin</label><input type='number' name='pin_sda' value='" + String(config.pin_sda) + "'></div>";
@@ -118,7 +186,7 @@ public:
             html += "<div><label>Shunt R (Ohms)</label><input type='text' name='ina_rsh' value='" + String(config.ina_r_shunt, 3) + "'></div>";
             html += F("</div></div>");
 
-            // 3. Station & Cloudflare Provisioning
+            // 5. Station & Cloudflare Provisioning
             html += F("<div class='card'><div class='sub-title'>Station &amp; Cloudflare Provisioning</div>");
             html += F("<label>Station Name (ID)</label>");
             html += "<input type='text' name='st_id' value='" + String(config.station_id) + "' required>";
@@ -130,47 +198,109 @@ public:
             html += "<input type='text' name='worker_url' value='" + String(config.worker_url) + "' required>";
             html += F("</div>");
 
-            // 4. Wi-Fi Connectivity
-            html += F("<div class='card'><div class='sub-title'>Wi-Fi Connectivity</div>");
-            html += F("<label>Primary Wi-Fi SSID</label>");
-            html += "<input type='text' name='wifi_ssid' value='" + String(config.wifi_ssid) + "' required>";
-            html += F("<label>Primary Wi-Fi Password</label>");
-            html += "<input type='password' name='wifi_pass' value='" + String(config.wifi_pass) + "'>";
-            html += F("<label>Backup Wi-Fi SSID (Optional)</label>");
-            html += "<input type='text' name='bkp_ssid' value='" + String(config.backup_ssid) + "'>";
-            html += F("<label>Backup Wi-Fi Password</label>");
-            html += "<input type='password' name='bkp_pass' value='" + String(config.backup_pass) + "'>";
-            html += F("</div>");
-
-            // 5. Hardware Pins & Calibration Factors
-            html += F("<div class='card'><div class='sub-title'>ADC Hardware Pins &amp; Calibration</div>");
-            html += F("<div class='row'>");
-            html += "<div><label>Temp Pin</label><input type='number' name='pin_temp' value='" + String(config.pin_temp) + "'></div>";
-            html += "<div><label>Solar Pin</label><input type='number' name='pin_solar' value='" + String(config.pin_solar) + "'></div>";
-            html += "<div><label>LiPo Pin</label><input type='number' name='pin_lipo' value='" + String(config.pin_lipo) + "'></div>";
-            html += F("</div>");
-
-            html += F("<div class='row'>");
-            html += "<div><label>Temp Factor</label><input type='text' name='c_tmp_f' value='" + String(config.cal_temp_factor, 2) + "'></div>";
-            html += "<div><label>Solar Factor</label><input type='text' name='c_sol_f' value='" + String(config.cal_solar_factor, 2) + "'></div>";
-            html += "<div><label>LiPo Factor</label><input type='text' name='c_lip_f' value='" + String(config.cal_lipo_factor, 2) + "'></div>";
-            html += F("</div></div>");
-
             html += F("<button type='submit' class='btn'>&#128190; Save Configuration &amp; Reboot</button>");
-            html += F("</form></div></body></html>");
+            html += F("</form>");
+
+            // JavaScript for live Wi-Fi testing & dynamic fields
+            html += F("<script>");
+            html += F("function toggleStaticFields() {");
+            html += F("  var chk = document.getElementById('use_static_ip').checked;");
+            html += F("  document.getElementById('static_ip_fields').style.display = chk ? 'block' : 'none';");
+            html += F("}");
+            html += F("async function testWifiConnection() {");
+            html += F("  var res = document.getElementById('wifi-test-result');");
+            html += F("  var ssid = encodeURIComponent(document.getElementById('wf_ssid').value);");
+            html += F("  var pass = encodeURIComponent(document.getElementById('wf_pass').value);");
+            html += F("  var isStatic = document.getElementById('use_static_ip').checked ? 1 : 0;");
+            html += F("  var ip = encodeURIComponent(document.getElementById('stat_ip').value);");
+            html += F("  var gw = encodeURIComponent(document.getElementById('stat_gw').value);");
+            html += F("  var sn = encodeURIComponent(document.getElementById('stat_sn').value);");
+            html += F("  var dns = encodeURIComponent(document.getElementById('stat_dns').value);");
+            html += F("  if (!ssid) { res.textContent = '❌ Please enter SSID'; return; }");
+            html += F("  res.textContent = '⏳ Testing connection...';");
+            html += F("  try {");
+            html += F("    var url = '/test-wifi?ssid=' + ssid + '&pass=' + pass + '&use_static=' + isStatic + '&ip=' + ip + '&gw=' + gw + '&sn=' + sn + '&dns=' + dns;");
+            html += F("    var resp = await fetch(url);");
+            html += F("    var data = await resp.json();");
+            html += F("    if (data.success) {");
+            html += F("      res.innerHTML = '<span style=\"color:#10b981;\">✅ Connected! IP: ' + data.ip + ' (' + data.rssi + ' dBm)</span>';");
+            html += F("    } else {");
+            html += F("      res.innerHTML = '<span style=\"color:#ef4444;\">❌ Failed: ' + (data.error || 'Timeout') + '</span>';");
+            html += F("    }");
+            html += F("  } catch(e) {");
+            html += F("    res.innerHTML = '<span style=\"color:#ef4444;\">❌ Error testing: ' + e.message + '</span>';");
+            html += F("  }");
+            html += F("}");
+            html += F("</script>");
+            html += F("</div></body></html>");
 
             server.send(200, "text/html", html);
         });
 
+        // 2. Test Wi-Fi Endpoint
+        server.on("/test-wifi", HTTP_GET, [&]() {
+            String testSsid   = server.hasArg("ssid") ? server.arg("ssid") : "";
+            String testPass   = server.hasArg("pass") ? server.arg("pass") : "";
+            bool testStatic   = server.hasArg("use_static") && server.arg("use_static") == "1";
+            String testIp     = server.hasArg("ip") ? server.arg("ip") : "";
+            String testGw     = server.hasArg("gw") ? server.arg("gw") : "";
+            String testSn     = server.hasArg("sn") ? server.arg("sn") : "255.255.255.0";
+            String testDns    = server.hasArg("dns") ? server.arg("dns") : "1.1.1.1";
+
+            if (testSsid.length() == 0) {
+                server.send(400, "application/json", "{\"success\":false,\"error\":\"SSID empty\"}");
+                return;
+            }
+
+            WiFi.mode(WIFI_AP_STA);
+            if (testStatic && testIp.length() > 0) {
+                IPAddress ip, gw, sn, dns;
+                if (ip.fromString(testIp) && gw.fromString(testGw) && sn.fromString(testSn)) {
+                    dns.fromString(testDns.length() > 0 ? testDns : "1.1.1.1");
+                    WiFi.config(ip, gw, sn, dns);
+                }
+            } else {
+                WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
+            }
+
+            WiFi.begin(testSsid.c_str(), testPass.c_str());
+            unsigned long start = millis();
+            while (WiFi.status() != WL_CONNECTED && (millis() - start < 7500)) {
+                delay(80);
+            }
+
+            if (WiFi.status() == WL_CONNECTED) {
+                String resp = "{\"success\":true,\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}";
+                WiFi.disconnect();
+                server.send(200, "application/json", resp);
+            } else {
+                String resp = "{\"success\":false,\"status\":" + String(WiFi.status()) + ",\"error\":\"Connection timed out\"}";
+                WiFi.disconnect();
+                server.send(200, "application/json", resp);
+            }
+        });
+
+        // 3. Save Configuration Handler
         server.on("/save", HTTP_POST, [&]() {
             if (server.hasArg("st_id")) strlcpy(config.station_id, server.arg("st_id").c_str(), sizeof(config.station_id));
             if (server.hasArg("location")) strlcpy(config.location, server.arg("location").c_str(), sizeof(config.location));
             if (server.hasArg("master_phrase")) strlcpy(config.master_phrase, server.arg("master_phrase").c_str(), sizeof(config.master_phrase));
             if (server.hasArg("worker_url")) strlcpy(config.worker_url, server.arg("worker_url").c_str(), sizeof(config.worker_url));
+
             if (server.hasArg("wifi_ssid")) strlcpy(config.wifi_ssid, server.arg("wifi_ssid").c_str(), sizeof(config.wifi_ssid));
             if (server.hasArg("wifi_pass")) strlcpy(config.wifi_pass, server.arg("wifi_pass").c_str(), sizeof(config.wifi_pass));
             if (server.hasArg("bkp_ssid")) strlcpy(config.backup_ssid, server.arg("bkp_ssid").c_str(), sizeof(config.backup_ssid));
             if (server.hasArg("bkp_pass")) strlcpy(config.backup_pass, server.arg("bkp_pass").c_str(), sizeof(config.backup_pass));
+
+            config.use_static_ip = server.hasArg("use_static_ip");
+            if (server.hasArg("stat_ip")) strlcpy(config.static_ip, server.arg("stat_ip").c_str(), sizeof(config.static_ip));
+            if (server.hasArg("stat_gw")) strlcpy(config.static_gateway, server.arg("stat_gw").c_str(), sizeof(config.static_gateway));
+            if (server.hasArg("stat_sn")) strlcpy(config.static_subnet, server.arg("stat_sn").c_str(), sizeof(config.static_subnet));
+            if (server.hasArg("stat_dns")) strlcpy(config.static_dns, server.arg("stat_dns").c_str(), sizeof(config.static_dns));
+
+            if (server.hasArg("temp_source")) config.temp_source = server.arg("temp_source").toInt();
+            config.enable_solar = server.hasArg("enable_solar");
+            config.enable_lipo  = server.hasArg("enable_lipo");
 
             if (server.hasArg("pin_temp")) config.pin_temp = server.arg("pin_temp").toInt();
             if (server.hasArg("pin_solar")) config.pin_solar = server.arg("pin_solar").toInt();

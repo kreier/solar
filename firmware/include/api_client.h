@@ -30,6 +30,34 @@ struct BufferedSample {
 };
 
 class ApiClient {
+private:
+    static void parseUrl(const String &url, String &host, uint16_t &port, String &path) {
+        String u = url;
+        port = 443;
+        if (u.startsWith("https://")) {
+            u = u.substring(8);
+            port = 443;
+        } else if (u.startsWith("http://")) {
+            u = u.substring(7);
+            port = 80;
+        }
+
+        int slashIdx = u.indexOf('/');
+        if (slashIdx != -1) {
+            host = u.substring(0, slashIdx);
+            path = u.substring(slashIdx);
+        } else {
+            host = u;
+            path = "/";
+        }
+
+        int colonIdx = host.indexOf(':');
+        if (colonIdx != -1) {
+            port = host.substring(colonIdx + 1).toInt();
+            host = host.substring(0, colonIdx);
+        }
+    }
+
 public:
     static bool registerStation(const String &workerUrl, const String &stationId,
                                 const String &location, const String &masterPhrase,
@@ -46,7 +74,7 @@ public:
         Serial.printf("[API] Registering station '%s' at %s...\n", stationId.c_str(), endpoint.c_str());
 
         WiFiClientSecure client;
-        client.setInsecure(); // Cloudflare edge TLS validation
+        client.setInsecure(); // Cloudflare edge TLS validation: skip certificate chain verification
 
         HTTPClient http;
         http.setTimeout(10000);
@@ -108,12 +136,36 @@ public:
             return false;
         }
 
-        String endpoint = workerUrl;
-        if (endpoint.endsWith("/")) endpoint.remove(endpoint.length() - 1);
-        endpoint += "/api/data";
-
         timer.markUploadStart();
 
+        String host, basePath;
+        uint16_t port;
+        parseUrl(workerUrl, host, port, basePath);
+        String path = basePath;
+        if (path.endsWith("/")) path.remove(path.length() - 1);
+        path += "/api/data";
+
+        // Step 1: DNS Lookup Benchmark
+        uint32_t t_dns_start = millis();
+        IPAddress serverIp;
+        bool dnsOk = WiFi.hostByName(host.c_str(), serverIp);
+        uint32_t dns_ms = millis() - t_dns_start;
+
+        if (!dnsOk) {
+            Serial.printf("[API] DNS lookup failed for '%s'\n", host.c_str());
+            timer.markUploadEnd(0);
+            return false;
+        }
+
+        // Step 2: TCP 3-way Handshake Benchmark
+        uint32_t t_tcp_start = millis();
+        WiFiClient tcpClient;
+        tcpClient.setTimeout(3000);
+        bool tcpOk = tcpClient.connect(serverIp, port);
+        uint32_t tcp_ms = millis() - t_tcp_start;
+        tcpClient.stop();
+
+        // Build JSON Telemetry Payload
         JsonDocument doc;
         doc["station_id"] = config.station_id;
         doc["location"] = config.location;
@@ -124,17 +176,17 @@ public:
 
         // Measurement readings
         doc["solar_mv"] = readings.solar_mv;
-        doc["solar_v"] = readings.solar_v;
-        doc["lipo_mv"] = readings.lipo_mv;
-        doc["lipo_v"] = readings.lipo_v;
-        doc["temp_c"] = readings.temp_c;
-        doc["temp_mv"] = readings.temp_mv;
+        doc["solar_v"]  = readings.solar_v;
+        doc["lipo_mv"]  = readings.lipo_mv;
+        doc["lipo_v"]   = readings.lipo_v;
+        doc["temp_c"]   = readings.temp_c;
+        doc["temp_mv"]  = readings.temp_mv;
 
         // Raw ADC samples
         JsonObject rawObj = doc["raw_adc"].to<JsonObject>();
-        rawObj["pin32"] = readings.raw_pin32;
-        rawObj["pin34"] = readings.raw_pin34;
-        rawObj["pin35"] = readings.raw_pin35;
+        rawObj["pin_temp"]  = readings.raw_pin_temp;
+        rawObj["pin_solar"] = readings.raw_pin_solar;
+        rawObj["pin_lipo"]  = readings.raw_pin_lipo;
 
         // INA3221 Sensor (CH1 Solar, CH3 Load)
         if (inaReadings.present) {
@@ -186,6 +238,11 @@ public:
             prevObj["measure_ms"] = prev.measure_ms;
             prevObj["wifi_connect_ms"] = prev.wifi_connect_ms;
             prevObj["ip_obtain_ms"] = prev.ip_obtain_ms;
+            prevObj["dns_ms"] = prev.dns_ms;
+            prevObj["tcp_ms"] = prev.tcp_ms;
+            prevObj["tls_ms"] = prev.tls_ms;
+            prevObj["post_ms"] = prev.post_ms;
+            prevObj["server_ms"] = prev.server_ms;
             prevObj["upload_ms"] = prev.upload_ms;
             prevObj["total_cycle_ms"] = prev.total_cycle_ms;
             prevObj["http_code"] = prev.http_code;
@@ -196,38 +253,82 @@ public:
         currObj["measure_ms"] = timer.getMeasureDuration();
         currObj["wifi_connect_ms"] = timer.getWifiConnectDuration();
         currObj["ip_obtain_ms"] = timer.getIpObtainDuration();
+        currObj["dns_ms"] = dns_ms;
+        currObj["tcp_ms"] = tcp_ms;
 
         String jsonPayload;
         serializeJson(doc, jsonPayload);
 
-        WiFiClientSecure client;
-        client.setInsecure(); // Cloudflare edge TLS validation
+        // Step 3: TLS Handshake (mbedTLS, skip certificate chain verification)
+        WiFiClientSecure secClient;
+        secClient.setInsecure(); // Skip certificate verification overhead
+        secClient.setTimeout(8000);
 
-        HTTPClient http;
-        http.setTimeout(12000);
+        uint32_t t_tls_start = millis();
+        bool tlsOk = secClient.connect(serverIp, port);
+        uint32_t tls_ms = millis() - t_tls_start;
 
-        if (!http.begin(client, endpoint)) {
-            Serial.println(F("[API] Telemetry connection failed to begin"));
+        if (!tlsOk) {
+            Serial.printf("[API] TLS handshake to %s failed\n", serverIp.toString().c_str());
+            timer.setUploadBreakdown(dns_ms, tcp_ms, tls_ms, 0, 0);
             timer.markUploadEnd(0);
             return false;
         }
 
-        http.addHeader("Content-Type", "application/json");
-        http.addHeader("Authorization", "Bearer " + deviceToken);
+        // Step 4: HTTP POST Transmission
+        uint32_t t_post_start = millis();
+        secClient.printf("POST %s HTTP/1.1\r\n", path.c_str());
+        secClient.printf("Host: %s\r\n", host.c_str());
+        secClient.println("User-Agent: SolarESP32/1.1.0");
+        secClient.println("Connection: close");
+        secClient.println("Content-Type: application/json");
+        secClient.printf("Authorization: Bearer %s\r\n", deviceToken.c_str());
+        secClient.printf("Content-Length: %d\r\n\r\n", jsonPayload.length());
+        secClient.print(jsonPayload);
+        uint32_t post_ms = millis() - t_post_start;
 
-        Serial.printf("[API] Uploading telemetry to %s (%d bytes)...\n", endpoint.c_str(), jsonPayload.length());
-        int httpCode = http.POST(jsonPayload);
+        // Step 5: Server Execution & Response Latency
+        uint32_t t_server_start = millis();
+        while (secClient.connected() && !secClient.available() && (millis() - t_server_start < 8000)) {
+            delay(5);
+        }
+        uint32_t server_ms = millis() - t_server_start;
 
+        int httpCode = 0;
+        String respBody = "";
+        if (secClient.available()) {
+            String statusLine = secClient.readStringUntil('\n');
+            if (statusLine.startsWith("HTTP/1.")) {
+                httpCode = statusLine.substring(9, 12).toInt();
+            }
+            // Skip headers to read body
+            while (secClient.available()) {
+                String line = secClient.readStringUntil('\n');
+                if (line == "\r" || line.length() == 0) break;
+            }
+            if (secClient.available()) {
+                respBody = secClient.readString();
+            }
+        }
+        secClient.stop();
+
+        timer.setUploadBreakdown(dns_ms, tcp_ms, tls_ms, post_ms, server_ms);
         timer.markUploadEnd(httpCode);
 
+        // Print Granular Latency Breakdown to Serial
+        Serial.println(F("\n[Benchmark] Execution Latency & Upload Breakdown:"));
+        Serial.printf("  ├── DNS Lookup         : %4lu ms (%s -> %s)\n", (unsigned long)dns_ms, host.c_str(), serverIp.toString().c_str());
+        Serial.printf("  ├── TCP 3-Way Handshake: %4lu ms (Port %u)\n", (unsigned long)tcp_ms, port);
+        Serial.printf("  ├── TLS Handshake      : %4lu ms (mbedTLS, Cert Chain Verify Skipped)\n", (unsigned long)tls_ms);
+        Serial.printf("  ├── HTTP POST Payload  : %4lu ms (%d bytes)\n", (unsigned long)post_ms, jsonPayload.length());
+        Serial.printf("  └── Server Execution   : %4lu ms\n", (unsigned long)server_ms);
+        Serial.printf("  >>> Total Upload Time  : %4lu ms (HTTP %d)\n\n", (unsigned long)timer.getUploadDuration(), httpCode);
+
         if (httpCode == 200 || httpCode == 201) {
-            Serial.printf("[API] Telemetry accepted! Code: %d, Response: %s\n", httpCode, http.getString().c_str());
-            http.end();
+            Serial.printf("[API] Telemetry accepted! Response: %s\n", respBody.c_str());
             return true;
         } else {
-            String respBody = http.getString();
             Serial.printf("[API] Telemetry upload error (%d): %s\n", httpCode, respBody.c_str());
-            http.end();
             return false;
         }
     }

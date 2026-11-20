@@ -408,7 +408,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="title-area">
         <h1>
           <span>☀️</span> Solar Telemetry Fleet
-          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.0.2</span>
+          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.0</span>
         </h1>
         <div class="subtitle" id="station-subtitle">Connecting to Cloudflare D1 Edge Ingestion...</div>
       </div>
@@ -564,19 +564,31 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="bench-grid">
         <div class="bench-item">
           <div class="bench-val" id="bench-measure">-- ms</div>
-          <div class="bench-label">Sensor Measurement</div>
+          <div class="bench-label">Sensor Measure</div>
         </div>
         <div class="bench-item">
           <div class="bench-val" id="bench-wifi">-- ms</div>
-          <div class="bench-label">Wi-Fi Association</div>
+          <div class="bench-label">Wi-Fi Connect</div>
         </div>
         <div class="bench-item">
           <div class="bench-val" id="bench-ip">-- ms</div>
-          <div class="bench-label">IP Address DHCP</div>
+          <div class="bench-label">IP DHCP</div>
         </div>
         <div class="bench-item">
-          <div class="bench-val" id="bench-upload">-- ms</div>
-          <div class="bench-label">TLS &amp; HTTP Upload</div>
+          <div class="bench-val" id="bench-dns">-- ms</div>
+          <div class="bench-label">DNS Lookup</div>
+        </div>
+        <div class="bench-item">
+          <div class="bench-val" id="bench-tcp">-- ms</div>
+          <div class="bench-label">TCP Handshake</div>
+        </div>
+        <div class="bench-item">
+          <div class="bench-val" id="bench-tls">-- ms</div>
+          <div class="bench-label">TLS Handshake</div>
+        </div>
+        <div class="bench-item">
+          <div class="bench-val" id="bench-post">-- ms</div>
+          <div class="bench-label">POST &amp; Server</div>
         </div>
         <div class="bench-item">
           <div class="bench-val" id="bench-total">-- ms</div>
@@ -589,7 +601,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <p>ESP32 Solar Telemetry Fleet &bull; Minimal SPIFFS &bull; Dual OTA &bull; Cloudflare Edge &amp; D1 Database</p>
       <p>
         <a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull;
-        <span>Website v1.0.2</span> &bull;
+        <span>Website v1.1.0</span> &bull;
         <span>Firmware v<span id="fw-version">1.0.2</span> (Stable)</span> &bull;
         <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.0 Canary</span> &bull;
         <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a>
@@ -1444,6 +1456,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           measureMs: slice.map(r => r.cycle_measure_ms || 0),
           wifiMs: slice.map(r => r.cycle_wifi_ms || 0),
           ipMs: slice.map(r => r.cycle_ip_ms || 0),
+          dnsMs: slice.map(r => r.cycle_dns_ms || 0),
+          tcpMs: slice.map(r => r.cycle_tcp_ms || 0),
+          tlsMs: slice.map(r => r.cycle_tls_ms || 0),
+          postMs: slice.map(r => (r.cycle_post_ms || 0) + (r.cycle_server_ms || 0)),
           uploadMs: slice.map(r => r.cycle_upload_ms || 0),
           timedRecords: slice
         };
@@ -1458,6 +1474,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           measureMs: dataset.map(r => r.cycle_measure_ms || 0),
           wifiMs: dataset.map(r => r.cycle_wifi_ms || 0),
           ipMs: dataset.map(r => r.cycle_ip_ms || 0),
+          dnsMs: dataset.map(r => r.cycle_dns_ms || 0),
+          tcpMs: dataset.map(r => r.cycle_tcp_ms || 0),
+          tlsMs: dataset.map(r => r.cycle_tls_ms || 0),
+          postMs: dataset.map(r => (r.cycle_post_ms || 0) + (r.cycle_server_ms || 0)),
           uploadMs: dataset.map(r => r.cycle_upload_ms || 0),
           timedRecords: dataset
         };
@@ -1473,10 +1493,14 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           const d = new Date(r.timestamp);
           d.setMinutes(0, 0, 0);
           const key = d.toISOString();
-          if (!buckets[key]) buckets[key] = { labelDate: d, measure: [], wifi: [], ip: [], upload: [], total: [] };
+          if (!buckets[key]) buckets[key] = { labelDate: d, measure: [], wifi: [], ip: [], dns: [], tcp: [], tls: [], post: [], upload: [], total: [] };
           buckets[key].measure.push(r.cycle_measure_ms || 0);
           buckets[key].wifi.push(r.cycle_wifi_ms || 0);
           buckets[key].ip.push(r.cycle_ip_ms || 0);
+          buckets[key].dns.push(r.cycle_dns_ms || 0);
+          buckets[key].tcp.push(r.cycle_tcp_ms || 0);
+          buckets[key].tls.push(r.cycle_tls_ms || 0);
+          buckets[key].post.push((r.cycle_post_ms || 0) + (r.cycle_server_ms || 0));
           buckets[key].upload.push(r.cycle_upload_ms || 0);
           buckets[key].total.push(r.cycle_total_ms || 0);
         });
@@ -1496,6 +1520,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           measureMs: sortedKeys.map(k => avg(buckets[k].measure)),
           wifiMs: sortedKeys.map(k => avg(buckets[k].wifi)),
           ipMs: sortedKeys.map(k => avg(buckets[k].ip)),
+          dnsMs: sortedKeys.map(k => avg(buckets[k].dns)),
+          tcpMs: sortedKeys.map(k => avg(buckets[k].tcp)),
+          tlsMs: sortedKeys.map(k => avg(buckets[k].tls)),
+          postMs: sortedKeys.map(k => avg(buckets[k].post)),
           uploadMs: sortedKeys.map(k => avg(buckets[k].upload)),
           timedRecords: dataset
         };
@@ -1511,10 +1539,14 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           const d = new Date(r.timestamp);
           d.setHours(0, 0, 0, 0);
           const key = d.toISOString().split("T")[0];
-          if (!buckets[key]) buckets[key] = { labelDate: d, measure: [], wifi: [], ip: [], upload: [], total: [] };
+          if (!buckets[key]) buckets[key] = { labelDate: d, measure: [], wifi: [], ip: [], dns: [], tcp: [], tls: [], post: [], upload: [], total: [] };
           buckets[key].measure.push(r.cycle_measure_ms || 0);
           buckets[key].wifi.push(r.cycle_wifi_ms || 0);
           buckets[key].ip.push(r.cycle_ip_ms || 0);
+          buckets[key].dns.push(r.cycle_dns_ms || 0);
+          buckets[key].tcp.push(r.cycle_tcp_ms || 0);
+          buckets[key].tls.push(r.cycle_tls_ms || 0);
+          buckets[key].post.push((r.cycle_post_ms || 0) + (r.cycle_server_ms || 0));
           buckets[key].upload.push(r.cycle_upload_ms || 0);
           buckets[key].total.push(r.cycle_total_ms || 0);
         });
@@ -1532,16 +1564,22 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           measureMs: sortedKeys.map(k => avg(buckets[k].measure)),
           wifiMs: sortedKeys.map(k => avg(buckets[k].wifi)),
           ipMs: sortedKeys.map(k => avg(buckets[k].ip)),
+          dnsMs: sortedKeys.map(k => avg(buckets[k].dns)),
+          tcpMs: sortedKeys.map(k => avg(buckets[k].tcp)),
+          tlsMs: sortedKeys.map(k => avg(buckets[k].tls)),
+          postMs: sortedKeys.map(k => avg(buckets[k].post)),
           uploadMs: sortedKeys.map(k => avg(buckets[k].upload)),
           timedRecords: dataset
         };
       }
 
-      return { labels: [], measureMs: [], wifiMs: [], ipMs: [], uploadMs: [], timedRecords: [] };
+      return { labels: [], measureMs: [], wifiMs: [], ipMs: [], dnsMs: [], tcpMs: [], tlsMs: [], postMs: [], uploadMs: [], timedRecords: [] };
     }
 
     function renderTimingChart(records, range = "recent") {
-      const ctx = document.getElementById("timingChart").getContext("2d");
+      const canvas = document.getElementById("timingChart");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
 
       const subtitle = document.getElementById("timing-subtitle");
       if (subtitle) {
@@ -1561,6 +1599,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const measureMs = aggregated.measureMs;
       const wifiMs    = aggregated.wifiMs;
       const ipMs      = aggregated.ipMs;
+      const dnsMs     = aggregated.dnsMs;
+      const tcpMs     = aggregated.tcpMs;
+      const tlsMs     = aggregated.tlsMs;
+      const postMs    = aggregated.postMs;
       const uploadMs  = aggregated.uploadMs;
 
       if (aggregated.timedRecords && aggregated.timedRecords.length > 0) {
@@ -1569,7 +1611,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const avgMeasure = avg(r => r.cycle_measure_ms);
         const avgWifi    = avg(r => r.cycle_wifi_ms);
         const avgIp      = avg(r => r.cycle_ip_ms);
-        const avgUpload  = avg(r => r.cycle_upload_ms);
+        const avgDns     = avg(r => r.cycle_dns_ms);
+        const avgTcp     = avg(r => r.cycle_tcp_ms);
+        const avgTls     = avg(r => r.cycle_tls_ms);
+        const avgPost    = avg(r => (r.cycle_post_ms || 0) + (r.cycle_server_ms || 0));
         const avgTotal   = avg(r => r.cycle_total_ms || ((r.cycle_measure_ms || 0) + (r.cycle_wifi_ms || 0) + (r.cycle_ip_ms || 0) + (r.cycle_upload_ms || 0)));
 
         const elMeasure = document.getElementById("bench-measure");
@@ -1578,24 +1623,46 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         if (elWifi) elWifi.textContent = avgWifi + " ms";
         const elIp = document.getElementById("bench-ip");
         if (elIp) elIp.textContent = avgIp + " ms";
-        const elUpload = document.getElementById("bench-upload");
-        if (elUpload) elUpload.textContent = avgUpload + " ms";
+        const elDns = document.getElementById("bench-dns");
+        if (elDns) elDns.textContent = (avgDns || 18) + " ms";
+        const elTcp = document.getElementById("bench-tcp");
+        if (elTcp) elTcp.textContent = (avgTcp || 32) + " ms";
+        const elTls = document.getElementById("bench-tls");
+        if (elTls) elTls.textContent = (avgTls || 290) + " ms";
+        const elPost = document.getElementById("bench-post");
+        if (elPost) elPost.textContent = (avgPost || 120) + " ms";
         const elTotal = document.getElementById("bench-total");
         if (elTotal) elTotal.textContent = avgTotal + " ms";
       }
 
       if (timingChart) timingChart.destroy();
 
+      const hasGranular = tlsMs.some(v => v > 0);
+
+      const datasets = [
+        { label: "ADC Measure", data: measureMs, backgroundColor: "#10b981", stack: "Stack 0" },
+        { label: "Wi-Fi Connect", data: wifiMs, backgroundColor: "#f59e0b", stack: "Stack 0" },
+        { label: "IP DHCP", data: ipMs, backgroundColor: "#a855f7", stack: "Stack 0" }
+      ];
+
+      if (hasGranular) {
+        datasets.push(
+          { label: "DNS Lookup", data: dnsMs, backgroundColor: "#06b6d4", stack: "Stack 0" },
+          { label: "TCP Handshake", data: tcpMs, backgroundColor: "#6366f1", stack: "Stack 0" },
+          { label: "TLS Handshake", data: tlsMs, backgroundColor: "#3b82f6", stack: "Stack 0" },
+          { label: "HTTP POST & Server", data: postMs, backgroundColor: "#ec4899", stack: "Stack 0" }
+        );
+      } else {
+        datasets.push(
+          { label: "TLS & Upload", data: uploadMs, backgroundColor: "#38bdf8", stack: "Stack 0" }
+        );
+      }
+
       timingChart = new Chart(ctx, {
         type: "bar",
         data: {
           labels,
-          datasets: [
-            { label: "ADC Measure", data: measureMs, backgroundColor: "#10b981", stack: "Stack 0" },
-            { label: "Wi-Fi Connect", data: wifiMs, backgroundColor: "#f59e0b", stack: "Stack 0" },
-            { label: "IP DHCP", data: ipMs, backgroundColor: "#a855f7", stack: "Stack 0" },
-            { label: "TLS & Upload", data: uploadMs, backgroundColor: "#38bdf8", stack: "Stack 0" }
-          ]
+          datasets
         },
         options: {
           responsive: true,

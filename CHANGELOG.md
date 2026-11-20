@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-11-20
+
+### Added
+- **Website v1.1.0 Release**:
+  - Station dropdown streamlined to display clean station names.
+  - Clean KPI cards: stripped redundant sub-information from Solar Panel, LiPo Battery, Temperature, and Active Cycle Time cards.
+  - Granular Latency Breakdown: Execution benchmarks chart and summary cards now display 8 granular stages: Sensor Measure, Wi-Fi Connect, IP DHCP, DNS Lookup, TCP Handshake, TLS Handshake, POST & Server, and Total Active Time.
+  - LiPo battery autonomy calculation refined for real station datasets without NaN/stuck status.
+  - Bumped application and footer version badges to `Web v1.1.0`.
+
+- **Firmware v1.1.0-canary Updated Capabilities**:
+  - **Internal Temperature Sensor**: Added support for ESP32-S3 internal temperature sensor (`temperatureRead()`), defaulting to internal on ESP32-S3.
+  - **Modern eFuse ADC Calibration**: Switched from manual SAR ADC formulas to factory-calibrated `analogReadMilliVolts()` / `adc_cali_raw_to_voltage()`.
+  - **Custom Sensor Pins & Calibration Factors**:
+    - Selectable input pins for Temperature, Solar Voltage, and LiPo Voltage.
+    - Selectable conversion factors: standard `x2.0` (for 1:1 voltage dividers), standard `x0.1` (for 10 mV/°C analog temp), or custom user-specified multipliers.
+    - Individual toggles to temporarily disable solar and/or LiPo measurements.
+  - **INA3221 Bus Voltage Integration**: When INA3221 is enabled, Solar panel voltage is read directly from INA3221 Channel 1 bus voltage.
+  - **Static IP Configuration**: Added optional static IP, gateway, subnet mask, and DNS server settings.
+  - **Soft-AP Connection Tester**: Added a "Test Connection" button and `/test-wifi` endpoint in the Soft-AP captive portal to test Wi-Fi network connectivity before rebooting.
+  - **Wi-Fi Fast Reconnect**: Removed `WiFi.persistent(false)`, caching BSSID and RF channel in RTC memory and NVS for faster association.
+  - **Granular Latency Benchmarking**: Detailed breakdown into DNS lookup, TCP 3-way handshake, TLS handshake (with `setInsecure()` skipping certificate chain verification), HTTP POST transmission, and Cloudflare Worker server execution. Printed to Serial output and reported in telemetry JSON.
+  - **Reliable ESP32-S3 Double Reset Detection**: Implemented `RTC_NOINIT_ATTR` with NVS timestamp fallback to ensure double-press on EN/RST button reliably launches Soft-AP setup across `ESP_RST_POWERON` hardware resets.
+
 ## [1.1.0-canary] - 2026-11-20
 
 ### Added

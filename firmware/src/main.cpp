@@ -19,7 +19,7 @@
 #endif
 
 // RTC Memory Preserved across Deep Sleep
-RTC_DATA_ATTR CycleBenchmark rtc_prev_cycle = {0, 0, 0, 0, 0, 0, 0, false};
+RTC_DATA_ATTR CycleBenchmark rtc_prev_cycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false};
 RTC_DATA_ATTR int rtc_boot_count = 0;
 RTC_DATA_ATTR BufferedSample rtc_samples[6];
 RTC_DATA_ATTR uint8_t rtc_sample_count = 0;
@@ -31,7 +31,7 @@ Ina3221Reader ina;
 AppConfigManager configMgr;
 SolarConfig config;
 CycleTimer timer;
-DoubleResetDetector drd(2000); // 2-second double reset window
+DoubleResetDetector drd(3500); // 3.5-second double reset window for reliable manual portal entry
 
 // Forward declarations
 bool connectToWiFi();
@@ -84,10 +84,20 @@ bool connectToWiFi() {
 
     WiFi.mode(WIFI_STA);
 
+    // Apply fixed IP if configured
+    if (config.use_static_ip && strlen(config.static_ip) > 0) {
+        IPAddress ip, gw, sn, dns;
+        if (ip.fromString(config.static_ip) && gw.fromString(config.static_gateway) && sn.fromString(config.static_subnet)) {
+            dns.fromString(strlen(config.static_dns) > 0 ? config.static_dns : "1.1.1.1");
+            WiFi.config(ip, gw, sn, dns);
+            Serial.printf("[WiFi] Static IP configured: %s (GW: %s)\n", config.static_ip, config.static_gateway);
+        }
+    }
+
     // Fast Connection Optimization: Use cached BSSID and Channel from RTC memory
     if (rtc_channel > 0 && rtc_bssid[0] != 0) {
-        Serial.printf("[WiFi] Fast-connect with cached BSSID (%02X:%02X:%02X:%02X:%02X:%02X, CH %d)\n",
-                      rtc_bssid[0], rtc_bssid[1], rtc_bssid[2], rtc_bssid[3], rtc_bssid[4], rtc_bssid[5], rtc_channel);
+        Serial.printf("[WiFi] Fast-connect with cached BSSID (%02X:%02X:%02X:%02X:%02X:%02X, CH %ld)\n",
+                      rtc_bssid[0], rtc_bssid[1], rtc_bssid[2], rtc_bssid[3], rtc_bssid[4], rtc_bssid[5], (long)rtc_channel);
         WiFi.begin(config.wifi_ssid, config.wifi_pass, rtc_channel, rtc_bssid, true);
     } else {
         WiFi.begin(config.wifi_ssid, config.wifi_pass);
@@ -117,8 +127,8 @@ bool connectToWiFi() {
             memcpy(rtc_bssid, currBssid, 6);
         }
 
-        Serial.printf("[WiFi] IP acquired: %s (RSSI: %d dBm, Channel: %d)\n",
-                      WiFi.localIP().toString().c_str(), WiFi.RSSI(), rtc_channel);
+        Serial.printf("[WiFi] IP acquired: %s (RSSI: %d dBm, Channel: %ld)\n",
+                      WiFi.localIP().toString().c_str(), WiFi.RSSI(), (long)rtc_channel);
         return true;
     }
 
@@ -215,13 +225,12 @@ void runCycle() {
                   timer.getBootCount(), config.power_mode == 0 ? "Minimal Energy (1h Batch)" : "Balanced");
     Serial.println(F("--------------------------------------------------"));
 
-    // 1. Measure ADC sensors with 100x multisampling and configurable calibration
+    // 1. Measure ADC sensors with modern adc_cali_raw_to_voltage and configurable factors
     timer.markMeasureStart();
     AdcReadings readings = adc.readSensors(
         config.pin_temp, config.pin_solar, config.pin_lipo,
-        config.cal_temp_factor, config.cal_temp_offset,
-        config.cal_solar_factor, config.cal_solar_offset,
-        config.cal_lipo_factor, config.cal_lipo_offset
+        config.temp_source, config.enable_solar, config.enable_lipo,
+        config.cal_temp_factor, config.cal_solar_factor, config.cal_lipo_factor
     );
 
     // Read INA3221 if enabled
@@ -229,19 +238,35 @@ void runCycle() {
     memset(&inaData, 0, sizeof(inaData));
     if (config.has_ina3221) {
         inaData = ina.read();
+        // If INA3221 is enabled and present, Solar voltage is measured directly from INA3221 CH1
+        if (inaData.present && config.enable_solar) {
+            readings.solar_v = inaData.ch1_solar_v;
+            readings.solar_mv = static_cast<int>(inaData.ch1_solar_v * 1000.0f);
+        }
     }
     timer.markMeasureEnd();
 
-    Serial.printf("[Sensors] Local Temp:  %.1f °C (%d mV)\n", readings.temp_c, readings.temp_mv);
-    Serial.printf("[Sensors] Solar Panel: %.2f V (%d mV)\n", readings.solar_v, readings.solar_mv);
-    Serial.printf("[Sensors] LiPo Battery:%.2f V (%d mV)\n", readings.lipo_v, readings.lipo_mv);
+    Serial.printf("[Sensors] Local Temp:  %.1f °C (%d mV) [%s]\n",
+                  readings.temp_c, readings.temp_mv, config.temp_source == 1 ? "Internal Sensor" : "External Pin");
+    if (config.enable_solar) {
+        Serial.printf("[Sensors] Solar Panel: %.2f V (%d mV) [%s]\n",
+                      readings.solar_v, readings.solar_mv, (config.has_ina3221 && inaData.present) ? "INA3221 CH1" : "ADC Pin");
+    } else {
+        Serial.println(F("[Sensors] Solar Panel: Disabled in configuration"));
+    }
+    if (config.enable_lipo) {
+        Serial.printf("[Sensors] LiPo Battery:%.2f V (%d mV) [Factor x%.2f]\n",
+                      readings.lipo_v, readings.lipo_mv, config.cal_lipo_factor);
+    } else {
+        Serial.println(F("[Sensors] LiPo Battery:Disabled in configuration"));
+    }
     if (inaData.present) {
         Serial.printf("[INA3221] CH1 Solar: %.3f V, %.1f mA, %.1f mW\n",
                       inaData.ch1_solar_v, inaData.ch1_solar_ma, inaData.ch1_solar_mw);
         Serial.printf("[INA3221] CH3 Load:  %.3f V, %.1f mA, %.1f mW (Res: %.1f Ohm)\n",
                       inaData.ch3_load_v, inaData.ch3_load_ma, inaData.ch3_load_mw, inaData.ch3_load_res_ohm);
     }
-    Serial.printf("[Benchmark] Measure duration: %u ms\n", timer.getMeasureDuration());
+    Serial.printf("[Benchmark] Measure duration: %lu ms\n", (unsigned long)timer.getMeasureDuration());
 
     // Check serial configuration commands
     checkSerialConfiguration();

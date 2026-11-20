@@ -6,8 +6,8 @@
 
 #define DRD_MAGIC 0xD0BB1E01
 
-// Retained in RTC memory across warm/software resets and reset button presses
-RTC_DATA_ATTR uint32_t rtc_drd_magic = 0;
+// Retained in RTC no-init memory across software and physical reset button presses
+RTC_NOINIT_ATTR uint32_t rtc_drd_magic;
 
 class DoubleResetDetector {
 private:
@@ -15,11 +15,11 @@ private:
     uint32_t _timeoutMs;
 
 public:
-    DoubleResetDetector(uint32_t timeoutMs = 2500)
+    DoubleResetDetector(uint32_t timeoutMs = 3500)
         : _doubleResetDetected(false), _timeoutMs(timeoutMs) {}
 
     bool detect() {
-        // If waking from Deep Sleep timer, this is an automated telemetry cycle, NOT a human reset.
+        // If waking from Deep Sleep timer, this is an automated telemetry cycle, NOT a human double reset.
         if (esp_reset_reason() == ESP_RST_DEEPSLEEP) {
             _doubleResetDetected = false;
             return false;
@@ -50,7 +50,7 @@ public:
         prefs.putUInt("magic", DRD_MAGIC);
         prefs.end();
 
-        Serial.println(F("[DRD] Reset window active: press reset again within 2.5s for Soft-AP setup"));
+        Serial.printf("[DRD] Reset window active: press reset again within %.1fs for Soft-AP setup\n", _timeoutMs / 1000.0f);
 
         // Wait for double-reset window on physical reset/power-on so user has time to press RST again!
         uint32_t start = millis();
