@@ -30,9 +30,17 @@ build_target() {
 
     cp "$app_bin" "$dest_app"
 
+    local flash_size_arg="keep"
+    if [ "$chip" = "esp32s3" ]; then
+        flash_size_arg="16MB"
+    elif [ "$chip" = "esp32" ] || [ "$chip" = "esp32c6" ]; then
+        flash_size_arg="4MB"
+    fi
+
     # Merge binary using esptool
-    echo "===> Merging $chip binary for $ver..."
+    echo "===> Merging $chip binary for $ver (flash-size: $flash_size_arg)..."
     $ESPTOOL --chip "$chip" merge-bin \
+        --flash-size "$flash_size_arg" \
         --output "$dest_merged" \
         "$bootloader_offset" "$bootloader_bin" \
         0x8000 "$partitions_bin" \
