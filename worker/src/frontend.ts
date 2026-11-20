@@ -902,25 +902,41 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         select.innerHTML = "";
 
         if (stations && stations.length > 0) {
-          stations.forEach((st, idx) => {
+          stations.forEach((st) => {
             const opt = document.createElement("option");
             opt.value = st.station_id;
             const fwLabel = st.firmware_version ? \` [FW v\${st.firmware_version}]\` : "";
             opt.textContent = \`\${st.station_id} (\${st.location || "Solar Site"})\${fwLabel}\`;
             select.appendChild(opt);
           });
-          currentStationId = stations[0].station_id;
-        } else {
-          currentStationId = "phumy2";
-        }
 
-        loadStationData(currentStationId);
+          // Check for URL query param or select S3 / first station
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlStation = urlParams.get("station");
+          if (urlStation && stations.some(s => s.station_id.toLowerCase() === urlStation.toLowerCase())) {
+            currentStationId = stations.find(s => s.station_id.toLowerCase() === urlStation.toLowerCase()).station_id;
+          } else {
+            currentStationId = stations[0].station_id;
+          }
+          select.value = currentStationId;
+          loadStationData(currentStationId);
+        } else {
+          document.getElementById("station-subtitle").textContent = "No registered stations found in D1 database.";
+        }
       } catch (err) {
         console.warn("Failed to load stations from edge API, loading demo mode:", err);
         const select = document.getElementById("station-select");
-        select.innerHTML = '<option value="phumy2">phumy2 (Demo Mode)</option>';
-        currentStationId = "phumy2";
-        loadMockData();
+        select.innerHTML = '<option value="demo">Demo Station</option>';
+        currentStationId = "demo";
+        const mock = loadMockData(3);
+        cachedHistory = mock;
+        document.getElementById("station-subtitle").innerHTML =
+          "Station: <b>demo</b> • Location: <b>Demo Mode</b> • <span class='badge badge-amber'>Node FW v1.0.2</span> • 432 demo telemetry points";
+        updateSummaryCards({ station_id: "demo", location: "Demo Mode", firmware_version: "1.0.2" }, mock[mock.length - 1]);
+        renderOverlayChart(mock, activeMetric);
+        renderHistoryChart(mock);
+        renderTimingChart(mock, benchmarkRange);
+        renderBatteryAnalytics(mock);
       }
     }
 
@@ -945,16 +961,9 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           " • <span class='badge badge-amber'>" + nodeFw + "</span>" + canaryBadge +
           " • " + cachedHistory.length + " telemetry points recorded";
       } catch (err) {
-        console.warn("API request failed, generating representative dataset:", err);
-        const mock = loadMockData(3);
-        cachedHistory = mock;
+        console.warn("API request failed:", err);
         document.getElementById("station-subtitle").innerHTML =
-          "Station: <b>phumy2</b> • Location: <b>District 7, HCMC</b> • <span class='badge badge-amber'>Node FW v1.0.2</span> • 432 telemetry points recorded";
-        updateSummaryCards({ station_id: "phumy2", location: "District 7, HCMC", firmware_version: "1.0.2" }, mock[mock.length - 1]);
-        renderOverlayChart(mock, activeMetric);
-        renderHistoryChart(mock);
-        renderTimingChart(mock, benchmarkRange);
-        renderBatteryAnalytics(mock);
+          "<span style='color:#ef4444;'>Failed to load telemetry for " + stationId + ". (" + err.message + ")</span>";
       }
     }
 
@@ -968,13 +977,9 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           return;
         }
       } catch (e) {
-        console.warn("Failed to fetch extended battery history, falling back:", e);
+        console.warn("Failed to fetch extended battery history, falling back to cached telemetry:", e);
       }
-      if (days > 3) {
-        renderBatteryAnalytics(loadMockData(days));
-      } else {
-        renderBatteryAnalytics(cachedHistory);
-      }
+      renderBatteryAnalytics(cachedHistory);
     }
 
     async function loadBenchmarkHistory(stationId, range, days) {
@@ -1036,24 +1041,30 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         }
       }
 
-      if (latest && latest.cycle_total_ms) {
-        document.getElementById("cycle-total").innerHTML = latest.cycle_total_ms + ' <span class="card-unit">ms</span>';
+      if (latest && (latest.cycle_total_ms || latest.cycle_wifi_ms || latest.cycle_measure_ms)) {
+        const total = latest.cycle_total_ms || ((latest.cycle_measure_ms || 0) + (latest.cycle_wifi_ms || 0) + (latest.cycle_ip_ms || 0) + (latest.cycle_upload_ms || 0));
+        document.getElementById("cycle-total").innerHTML = total + ' <span class="card-unit">ms</span>';
         document.getElementById("cycle-http").textContent = "HTTP " + (latest.cycle_http_code || 200);
 
-        document.getElementById("bench-measure").textContent = (latest.cycle_measure_ms || 12) + " ms";
-        document.getElementById("bench-wifi").textContent    = (latest.cycle_wifi_ms || 780) + " ms";
-        document.getElementById("bench-ip").textContent      = (latest.cycle_ip_ms || 110) + " ms";
-        document.getElementById("bench-upload").textContent  = (latest.cycle_upload_ms || 390) + " ms";
-        document.getElementById("bench-total").textContent   = latest.cycle_total_ms + " ms";
+        if (latest.cycle_measure_ms != null) document.getElementById("bench-measure").textContent = latest.cycle_measure_ms + " ms";
+        if (latest.cycle_wifi_ms != null) document.getElementById("bench-wifi").textContent = latest.cycle_wifi_ms + " ms";
+        if (latest.cycle_ip_ms != null) document.getElementById("bench-ip").textContent = latest.cycle_ip_ms + " ms";
+        if (latest.cycle_upload_ms != null) document.getElementById("bench-upload").textContent = latest.cycle_upload_ms + " ms";
+        if (total > 0) document.getElementById("bench-total").textContent = total + " ms";
+      } else {
+        document.getElementById("cycle-total").innerHTML = '-- <span class="card-unit">ms</span>';
+        document.getElementById("cycle-http").textContent = "Standby";
       }
 
       // Check for INA3221 Telemetry in raw payload
+      const inaCard = document.getElementById("ina3221-card");
+      let hasIna = false;
       if (latest && latest.raw_payload) {
         try {
           const raw = typeof latest.raw_payload === "string" ? JSON.parse(latest.raw_payload) : latest.raw_payload;
           if (raw && raw.ina3221) {
             const ina = raw.ina3221;
-            const inaCard = document.getElementById("ina3221-card");
+            hasIna = true;
             if (inaCard) {
               inaCard.style.display = "block";
               if (ina.ch1_solar) {
@@ -1071,6 +1082,9 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         } catch (e) {
           // No INA3221 in payload
         }
+      }
+      if (!hasIna && inaCard) {
+        inaCard.style.display = "none";
       }
     }
 
@@ -1156,6 +1170,12 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       });
       const data = records.map(r => r.lipo_v || (r.lipo_mv / 1000.0));
 
+      const validValues = data.filter(v => v != null && !isNaN(v) && v > 0);
+      const minVal = validValues.length ? Math.min(...validValues) : 3.3;
+      const maxVal = validValues.length ? Math.max(...validValues) : 4.2;
+      const yMin = Math.max(0, Number((Math.floor(minVal * 10) / 10 - 0.2).toFixed(1)));
+      const yMax = Number((Math.ceil(maxVal * 10) / 10 + 0.2).toFixed(1));
+
       if (batteryChart) batteryChart.destroy();
       batteryChart = new Chart(ctx, {
         type: "line",
@@ -1177,7 +1197,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           maintainAspectRatio: false,
           scales: {
             x: { grid: { color: "#21262d" }, ticks: { maxTicksLimit: 8, color: "#8b949e" } },
-            y: { min: 3.0, max: 4.4, grid: { color: "#21262d" }, ticks: { color: "#8b949e" }, title: { display: true, text: "Battery (V)", color: "#10b981" } }
+            y: { min: yMin, max: yMax, grid: { color: "#21262d" }, ticks: { color: "#8b949e" }, title: { display: true, text: "Battery (V)", color: "#10b981" } }
           },
           plugins: {
             legend: { labels: { color: "#f0f6fc" } }
@@ -1399,7 +1419,34 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
     }
 
     function aggregateTimingRecords(records, range) {
-      const timed = (records || []).filter(r => r.cycle_measure_ms != null && r.cycle_wifi_ms != null);
+      const normalized = (records || []).map(r => {
+        let measure = r.cycle_measure_ms;
+        let wifi = r.cycle_wifi_ms;
+        let ip = r.cycle_ip_ms;
+        let upload = r.cycle_upload_ms;
+        let total = r.cycle_total_ms;
+        if ((measure == null || wifi == null) && r.raw_payload) {
+          try {
+            const raw = typeof r.raw_payload === "string" ? JSON.parse(r.raw_payload) : r.raw_payload;
+            const cur = raw?.current_cycle;
+            const prev = raw?.prev_cycle;
+            measure = measure ?? prev?.measure_ms ?? cur?.measure_ms ?? null;
+            wifi = wifi ?? prev?.wifi_connect_ms ?? cur?.wifi_connect_ms ?? null;
+            ip = ip ?? prev?.ip_obtain_ms ?? cur?.ip_obtain_ms ?? null;
+            upload = upload ?? prev?.upload_ms ?? null;
+            total = total ?? prev?.total_cycle_ms ?? (upload && wifi && measure ? (measure + wifi + (ip || 0) + upload) : null);
+          } catch(e) {}
+        }
+        return {
+          ...r,
+          cycle_measure_ms: measure,
+          cycle_wifi_ms: wifi,
+          cycle_ip_ms: ip,
+          cycle_upload_ms: upload,
+          cycle_total_ms: total
+        };
+      });
+      const timed = normalized.filter(r => r.cycle_measure_ms != null || r.cycle_wifi_ms != null);
       if (timed.length === 0) return { labels: [], measureMs: [], wifiMs: [], ipMs: [], uploadMs: [], timedRecords: [] };
 
       const now = Date.now();

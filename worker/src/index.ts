@@ -116,7 +116,10 @@ export default {
         return withCors(
           new Response(JSON.stringify(stations), {
             status: 200,
-            headers: { "Content-Type": "application/json" }
+            headers: {
+              "Content-Type": "application/json",
+              "Cache-Control": "no-cache, no-store, must-revalidate"
+            }
           })
         );
       }
@@ -177,7 +180,7 @@ export default {
               status: 200,
               headers: {
                 "Content-Type": "application/json",
-                "Cache-Control": "public, max-age=60"
+                "Cache-Control": "no-cache, no-store, must-revalidate"
               }
             }
           )

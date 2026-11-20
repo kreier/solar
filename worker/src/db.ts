@@ -120,6 +120,15 @@ export class Database {
     const tempMv = payload.temp_mv ?? Math.round(payload.temp_c * 10.0);
 
     const prev = payload.prev_cycle;
+    const cur = payload.current_cycle;
+
+    const bootMs = prev?.boot_ms ?? null;
+    const measureMs = prev?.measure_ms ?? cur?.measure_ms ?? null;
+    const wifiMs = prev?.wifi_connect_ms ?? cur?.wifi_connect_ms ?? null;
+    const ipMs = prev?.ip_obtain_ms ?? cur?.ip_obtain_ms ?? null;
+    const uploadMs = prev?.upload_ms ?? null;
+    const totalMs = prev?.total_cycle_ms ?? (uploadMs && wifiMs && measureMs ? (measureMs + wifiMs + (ipMs || 0) + uploadMs) : null);
+    const httpCode = prev?.http_code ?? 200;
 
     await this.db
       .prepare(
@@ -148,13 +157,13 @@ export class Database {
         payload.raw_adc?.pin34 ?? null,
         payload.raw_adc?.pin35 ?? null,
         payload.boot_count ?? null,
-        prev?.boot_ms ?? null,
-        prev?.measure_ms ?? null,
-        prev?.wifi_connect_ms ?? null,
-        prev?.ip_obtain_ms ?? null,
-        prev?.upload_ms ?? null,
-        prev?.total_cycle_ms ?? null,
-        prev?.http_code ?? null,
+        bootMs,
+        measureMs,
+        wifiMs,
+        ipMs,
+        uploadMs,
+        totalMs,
+        httpCode,
         JSON.stringify(payload)
       )
       .run();
