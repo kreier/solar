@@ -218,7 +218,7 @@
     .heatmap-container {
       position: relative;
       width: 100%;
-      height: 320px;
+      height: 520px;
       background: #0d1117;
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -591,7 +591,7 @@
     <div class="chart-section">
       <div class="chart-header">
         <div>
-          <div class="chart-title">Edge Execution &amp; Telemetry Roundtrip Benchmarks</div>
+          <div class="chart-title">Uplink Latency Distribution</div>
           <div class="subtitle" id="timing-subtitle">Stage durations: Sensor measurement, Wi-Fi association, DHCP IP, and TLS telemetry upload</div>
         </div>
         <div class="btn-group" id="benchmark-range-toggle">
@@ -643,20 +643,16 @@
     </div>
 
     <!-- RF & BLE Activity Monitor Heatmap -->
-    <div class="chart-section" id="rf-monitor-section">
+    <div class="chart-section" id="rf-monitor-section" style="display: none;">
       <div class="chart-header" style="cursor: pointer;" onclick="toggleRfMonitor(event)">
         <div>
           <div class="chart-title">
             <span>📡 2.4 GHz RF &amp; BLE Environmental Activity Monitor</span>
             <span class="badge badge-amber" style="margin-left:0.5rem; font-size:0.75rem;">Mode 3 / Monitor</span>
           </div>
-          <div class="subtitle" id="rf-subtitle">Passive promiscuous RF packet density across channels 1–13 and BLE device discovery</div>
+          <div class="subtitle" id="rf-subtitle">Today's 2.4 GHz channels (1–13, BLE) and 7-day diurnal trend comparison</div>
         </div>
         <div style="display:flex; align-items:center; gap:0.75rem;" onclick="event.stopPropagation()">
-          <div class="btn-group" id="rf-view-toggle">
-            <button class="active" data-rf-view="30m" onclick="switchRfView('30m')">Today (30m Slots)</button>
-            <button data-rf-view="7d" onclick="switchRfView('7d')">7-Day Trend</button>
-          </div>
           <select id="rf-palette-select" class="palette-select" onchange="changeRfPalette(this.value)" title="Heatmap Color Scheme">
             <option value="inferno">Inferno</option>
             <option value="viridis">Viridis</option>
@@ -1032,23 +1028,25 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const select = document.getElementById("station-select");
         select.innerHTML = '<option value="demo">Demo Station</option>';
         currentStationId = "demo";
-        const mock = loadMockData(3);
+        const mock = loadMockData(7);
         cachedHistory = mock;
         document.getElementById("station-subtitle").innerHTML =
-          "Station: <b>demo</b> • Location: <b>Demo Mode</b> • <span class='badge badge-amber'>Node FW v1.0.2</span> • 432 demo telemetry points";
+          "Station: <b>demo</b> • Location: <b>Demo Mode</b> • <span class='badge badge-amber'>Node FW v1.0.2</span> • 1008 demo telemetry points";
         updateSummaryCards({ station_id: "demo", location: "Demo Mode", firmware_version: "1.0.2" }, mock[mock.length - 1]);
         renderOverlayChart(mock, activeMetric);
         renderHistoryChart(mock);
         renderTimingChart(mock, benchmarkRange);
         renderBatteryAnalytics(mock);
-        renderRfHeatmap(mock, currentRfView);
+        const rfSec = document.getElementById("rf-monitor-section");
+        if (rfSec) rfSec.style.display = "block";
+        renderRfHeatmap(mock);
       }
     }
 
     async function loadStationData(stationId) {
       document.getElementById("station-subtitle").textContent = "Fetching telemetry for " + stationId + "...";
       try {
-        const resp = await fetch(API_BASE + "/api/history?station_id=" + encodeURIComponent(stationId) + "&days=3");
+        const resp = await fetch(API_BASE + "/api/history?station_id=" + encodeURIComponent(stationId) + "&days=7");
         if (!resp.ok) throw new Error("HTTP " + resp.status);
         const data = await resp.json();
 
@@ -1058,7 +1056,20 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         try { renderHistoryChart(cachedHistory); } catch(e) { console.error("renderHistoryChart error:", e); }
         try { renderTimingChart(cachedHistory, benchmarkRange); } catch(e) { console.error("renderTimingChart error:", e); }
         try { renderBatteryAnalytics(cachedHistory); } catch(e) { console.error("renderBatteryAnalytics error:", e); }
-        try { renderRfHeatmap(cachedHistory, currentRfView); } catch(e) { console.error("renderRfHeatmap error:", e); }
+
+        const hasRf = cachedHistory.some(r =>
+          (r.wifi_channels_json && r.wifi_channels_json !== "null" && r.wifi_channels_json !== "[]") ||
+          (r.wifi_max_packets && r.wifi_max_packets > 0) ||
+          (r.ble_unique_devices && r.ble_unique_devices > 0)
+        ) || (data.station && (data.station.power_mode === 3 || data.station.station_id === "demo"));
+
+        const rfSec = document.getElementById("rf-monitor-section");
+        if (rfSec) {
+          rfSec.style.display = hasRf ? "block" : "none";
+        }
+        if (hasRf) {
+          try { renderRfHeatmap(cachedHistory); } catch(e) { console.error("renderRfHeatmap error:", e); }
+        }
 
         const nodeFw = (data.station && data.station.firmware_version) ? ("Node FW v" + data.station.firmware_version) : "Node FW v1.0.2";
         const canaryBadge = (data.station && data.station.is_canary) ? " <span class='badge badge-blue'>Canary</span>" : "";
@@ -1090,7 +1101,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
     async function loadBenchmarkHistory(stationId, range, days) {
       if (!stationId) return;
-      if (range === "recent" || (days <= 3 && cachedHistory.length >= 10)) {
+      if (range === "recent" || (days <= 7 && cachedHistory.length >= 10)) {
         renderTimingChart(cachedHistory, range);
         return;
       }
@@ -1107,10 +1118,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       if (days > 3) {
         const mockExt = loadMockData(days);
         renderTimingChart(mockExt, range);
-        renderRfHeatmap(mockExt, currentRfView);
+        renderRfHeatmap(mockExt);
       } else {
         renderTimingChart(cachedHistory, range);
-        renderRfHeatmap(cachedHistory, currentRfView);
+        renderRfHeatmap(cachedHistory);
       }
     }
 
@@ -1606,98 +1617,120 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       }
 
       if (range === "week") {
-        const cutoff = now - 7 * 24 * 60 * 60 * 1000;
-        const weekRecords = timed.filter(r => new Date(r.timestamp).getTime() >= cutoff);
-        const dataset = weekRecords.length > 0 ? weekRecords : timed;
+        const numHours = 168; // 7 days * 24h
+        const currentHour = new Date(now);
+        currentHour.setMinutes(0, 0, 0, 0);
 
-        const buckets = {};
-        dataset.forEach(r => {
-          const d = new Date(r.timestamp);
-          d.setMinutes(0, 0, 0);
-          const key = d.toISOString();
-          if (!buckets[key]) buckets[key] = { labelDate: d, records: [] };
-          buckets[key].records.push(r);
-        });
+        const labels = [];
+        const measureMs = [];
+        const wifiMs = [];
+        const ipMs = [];
+        const dnsMs = [];
+        const tcpMs = [];
+        const tlsMs = [];
+        const postMs = [];
+        const uploadMs = [];
+        const timedRecords = [];
 
-        const sortedKeys = Object.keys(buckets).sort();
-        const labels = sortedKeys.map(k => {
-          const d = buckets[k].labelDate;
-          const dayName = d.toLocaleDateString([], { weekday: "short" });
-          const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-          return `${dayName} ${timeStr}`;
-        });
+        for (let i = numHours - 1; i >= 0; i--) {
+          const slotStart = new Date(currentHour.getTime() - i * 3600 * 1000);
+          const slotEnd = new Date(slotStart.getTime() + 3600 * 1000);
 
-        // "week uses the worst value each hour"
-        const worstRecords = sortedKeys.map(k => {
-          const recs = buckets[k].records;
-          let worst = recs[0];
-          let maxTotal = 0;
-          recs.forEach(r => {
-            const tot = r.cycle_total_ms || ((r.cycle_measure_ms || 0) + (r.cycle_wifi_ms || 0) + (r.cycle_ip_ms || 0) + (r.cycle_upload_ms || 0));
-            if (tot >= maxTotal) {
-              maxTotal = tot;
-              worst = r;
-            }
+          const dayName = slotStart.toLocaleDateString([], { weekday: "short" });
+          const timeStr = slotStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          labels.push(`${dayName} ${timeStr}`);
+
+          const slotRecs = timed.filter(r => {
+            const t = new Date(r.timestamp).getTime();
+            return t >= slotStart.getTime() && t < slotEnd.getTime();
           });
-          return worst;
-        });
 
-        return {
-          labels,
-          measureMs: worstRecords.map(r => r.cycle_measure_ms || 0),
-          wifiMs: worstRecords.map(r => r.cycle_wifi_ms || 0),
-          ipMs: worstRecords.map(r => r.cycle_ip_ms || 0),
-          dnsMs: worstRecords.map(r => r.cycle_dns_ms || 0),
-          tcpMs: worstRecords.map(r => r.cycle_tcp_ms || 0),
-          tlsMs: worstRecords.map(r => r.cycle_tls_ms || 0),
-          postMs: worstRecords.map(r => (r.cycle_post_ms || 0) + (r.cycle_server_ms || 0)),
-          uploadMs: worstRecords.map(r => r.cycle_upload_ms || 0),
-          timedRecords: worstRecords
-        };
+          if (slotRecs.length > 0) {
+            let worst = slotRecs[0];
+            let maxTotal = 0;
+            slotRecs.forEach(r => {
+              const tot = r.cycle_total_ms || ((r.cycle_measure_ms || 0) + (r.cycle_wifi_ms || 0) + (r.cycle_ip_ms || 0) + (r.cycle_upload_ms || 0));
+              if (tot >= maxTotal) {
+                maxTotal = tot;
+                worst = r;
+              }
+            });
+            measureMs.push(worst.cycle_measure_ms || 0);
+            wifiMs.push(worst.cycle_wifi_ms || 0);
+            ipMs.push(worst.cycle_ip_ms || 0);
+            dnsMs.push(worst.cycle_dns_ms || 0);
+            tcpMs.push(worst.cycle_tcp_ms || 0);
+            tlsMs.push(worst.cycle_tls_ms || 0);
+            postMs.push((worst.cycle_post_ms || 0) + (worst.cycle_server_ms || 0));
+            uploadMs.push(worst.cycle_upload_ms || 0);
+            timedRecords.push(worst);
+          } else {
+            measureMs.push(0);
+            wifiMs.push(0);
+            ipMs.push(0);
+            dnsMs.push(0);
+            tcpMs.push(0);
+            tlsMs.push(0);
+            postMs.push(0);
+            uploadMs.push(0);
+          }
+        }
+
+        return { labels, measureMs, wifiMs, ipMs, dnsMs, tcpMs, tlsMs, postMs, uploadMs, timedRecords };
       }
 
       if (range === "month") {
-        const cutoff = now - 30 * 24 * 60 * 60 * 1000;
-        const monthRecords = timed.filter(r => new Date(r.timestamp).getTime() >= cutoff);
-        const dataset = monthRecords.length > 0 ? monthRecords : timed;
+        const numDays = 30;
+        const todayMidnight = new Date(now);
+        todayMidnight.setHours(0, 0, 0, 0);
 
-        const buckets = {};
-        dataset.forEach(r => {
-          const d = new Date(r.timestamp);
-          d.setHours(0, 0, 0, 0);
-          const key = d.toISOString().split("T")[0];
-          if (!buckets[key]) buckets[key] = { labelDate: d, measure: [], wifi: [], ip: [], dns: [], tcp: [], tls: [], post: [], upload: [], total: [] };
-          buckets[key].measure.push(r.cycle_measure_ms || 0);
-          buckets[key].wifi.push(r.cycle_wifi_ms || 0);
-          buckets[key].ip.push(r.cycle_ip_ms || 0);
-          buckets[key].dns.push(r.cycle_dns_ms || 0);
-          buckets[key].tcp.push(r.cycle_tcp_ms || 0);
-          buckets[key].tls.push(r.cycle_tls_ms || 0);
-          buckets[key].post.push((r.cycle_post_ms || 0) + (r.cycle_server_ms || 0));
-          buckets[key].upload.push(r.cycle_upload_ms || 0);
-          buckets[key].total.push(r.cycle_total_ms || 0);
-        });
+        const labels = [];
+        const measureMs = [];
+        const wifiMs = [];
+        const ipMs = [];
+        const dnsMs = [];
+        const tcpMs = [];
+        const tlsMs = [];
+        const postMs = [];
+        const uploadMs = [];
+        const timedRecords = [];
 
-        const sortedKeys = Object.keys(buckets).sort();
-        const labels = sortedKeys.map(k => {
-          const d = buckets[k].labelDate;
-          return d.toLocaleDateString([], { month: "short", day: "numeric" });
-        });
+        for (let i = numDays - 1; i >= 0; i--) {
+          const slotStart = new Date(todayMidnight.getTime() - i * 86400 * 1000);
+          const slotEnd = new Date(slotStart.getTime() + 86400 * 1000);
 
-        const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+          const dateStr = slotStart.toLocaleDateString([], { month: "short", day: "numeric" });
+          labels.push(dateStr);
 
-        return {
-          labels,
-          measureMs: sortedKeys.map(k => avg(buckets[k].measure)),
-          wifiMs: sortedKeys.map(k => avg(buckets[k].wifi)),
-          ipMs: sortedKeys.map(k => avg(buckets[k].ip)),
-          dnsMs: sortedKeys.map(k => avg(buckets[k].dns)),
-          tcpMs: sortedKeys.map(k => avg(buckets[k].tcp)),
-          tlsMs: sortedKeys.map(k => avg(buckets[k].tls)),
-          postMs: sortedKeys.map(k => avg(buckets[k].post)),
-          uploadMs: sortedKeys.map(k => avg(buckets[k].upload)),
-          timedRecords: dataset
-        };
+          const dayRecs = timed.filter(r => {
+            const t = new Date(r.timestamp).getTime();
+            return t >= slotStart.getTime() && t < slotEnd.getTime();
+          });
+
+          if (dayRecs.length > 0) {
+            const avg = (fn) => Math.round(dayRecs.reduce((a, b) => a + (fn(b) || 0), 0) / dayRecs.length);
+            measureMs.push(avg(r => r.cycle_measure_ms));
+            wifiMs.push(avg(r => r.cycle_wifi_ms));
+            ipMs.push(avg(r => r.cycle_ip_ms));
+            dnsMs.push(avg(r => r.cycle_dns_ms));
+            tcpMs.push(avg(r => r.cycle_tcp_ms));
+            tlsMs.push(avg(r => r.cycle_tls_ms));
+            postMs.push(avg(r => (r.cycle_post_ms || 0) + (r.cycle_server_ms || 0)));
+            uploadMs.push(avg(r => r.cycle_upload_ms));
+            dayRecs.forEach(r => timedRecords.push(r));
+          } else {
+            measureMs.push(0);
+            wifiMs.push(0);
+            ipMs.push(0);
+            dnsMs.push(0);
+            tcpMs.push(0);
+            tlsMs.push(0);
+            postMs.push(0);
+            uploadMs.push(0);
+          }
+        }
+
+        return { labels, measureMs, wifiMs, ipMs, dnsMs, tcpMs, tlsMs, postMs, uploadMs, timedRecords };
       }
 
       return { labels: [], measureMs: [], wifiMs: [], ipMs: [], dnsMs: [], tcpMs: [], tlsMs: [], postMs: [], uploadMs: [], timedRecords: [] };
@@ -1715,9 +1748,9 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         } else if (range === "day") {
           subtitle.textContent = "Past 24-hour cycle execution history (active wake duration)";
         } else if (range === "week") {
-          subtitle.textContent = "7-day execution trends (hourly averaged stage durations)";
+          subtitle.textContent = "7-day execution trends (168 hourly peak stage durations)";
         } else if (range === "month") {
-          subtitle.textContent = "30-day historical latency (daily averaged stage durations)";
+          subtitle.textContent = "30-day historical latency (30 daily averaged stage durations)";
         }
       }
 
@@ -1795,7 +1828,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            x: { stacked: true, grid: { color: "#21262d" }, ticks: { maxTicksLimit: range === "month" ? 15 : 12, color: "#8b949e" } },
+            x: { stacked: true, grid: { color: "#21262d" }, ticks: { maxTicksLimit: range === "month" ? 15 : (range === "week" ? 14 : 12), color: "#8b949e" } },
             y: { stacked: true, grid: { color: "#21262d" }, ticks: { color: "#8b949e" }, title: { display: true, text: "Active Time (ms)", color: "#8b949e" } }
           },
           plugins: {
@@ -1805,7 +1838,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       });
     }
 
-    function loadMockData(days = 3) {
+    function loadMockData(days = 7) {
       const records = [];
       const now = Date.now();
       const points = days * 24 * 6;
@@ -1871,7 +1904,6 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
     // RF & BLE MONITOR HEATMAP ENGINE
     // ==========================================
     let currentRfPalette = "amber";
-    let currentRfView = "30m";
     let isRfCollapsed = false;
     let cachedRfRecords = [];
     let rfCanvasInitialized = false;
@@ -1935,22 +1967,13 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       if (body) body.style.display = isRfCollapsed ? "none" : "block";
       if (btn) btn.classList.toggle("collapsed", isRfCollapsed);
       if (!isRfCollapsed) {
-        renderRfHeatmap(cachedRfRecords, currentRfView);
+        renderRfHeatmap(cachedRfRecords);
       }
     }
 
     function changeRfPalette(palette) {
       currentRfPalette = palette;
-      renderRfHeatmap(cachedRfRecords, currentRfView);
-    }
-
-    function switchRfView(view) {
-      currentRfView = view;
-      const buttons = document.querySelectorAll("#rf-view-toggle button");
-      buttons.forEach(btn => {
-        btn.classList.toggle("active", btn.getAttribute("data-rf-view") === view);
-      });
-      renderRfHeatmap(cachedRfRecords, currentRfView);
+      renderRfHeatmap(cachedRfRecords);
     }
 
     function updateRfLegend(minVal, maxVal) {
@@ -1968,7 +1991,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       `;
     }
 
-    function renderRfHeatmap(records, view = "30m") {
+    function renderRfHeatmap(records) {
       cachedRfRecords = records || [];
       if (isRfCollapsed) return;
 
@@ -1976,135 +1999,162 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const container = document.getElementById("rf-heatmap-container");
       if (!canvas || !container) return;
 
-      const now = Date.now();
-      const numRows = 14; // Rows 0..12: Channels 1..13; Row 13: BLE
-      const rowLabels = [
-        "CH 1", "CH 2", "CH 3", "CH 4", "CH 5", "CH 6", "CH 7",
-        "CH 8", "CH 9", "CH 10", "CH 11", "CH 12", "CH 13", "BLE"
-      ];
+      const numRows = 28;
+      const numCols = 48; // 48 half-hour slots: 00:00 to 23:30
 
-      let numCols = 48;
-      let colLabels = [];
-      let cellData = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayMidnight = today.getTime();
 
-      if (view === "30m") {
-        numCols = 48;
-        const slotDuration = 30 * 60 * 1000;
-        const startCutoff = now - 24 * 60 * 60 * 1000;
-
-        for (let c = 0; c < numCols; c++) {
-          const slotStart = startCutoff + c * slotDuration;
-          const slotEnd = slotStart + slotDuration;
-          const d = new Date(slotStart);
-          colLabels.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-
-          const slotRecs = cachedRfRecords.filter(r => {
-            const t = new Date(r.timestamp).getTime();
-            return t >= slotStart && t < slotEnd;
-          });
-
-          cellData[c] = [];
-          for (let r = 0; r < numRows; r++) {
-            let maxVal = 0;
-            if (r < 13) {
-              const ch = r + 1;
-              slotRecs.forEach(rec => {
-                let pkts = 0;
-                if (rec.wifi_channels_json) {
-                  try {
-                    const arr = typeof rec.wifi_channels_json === "string" ? JSON.parse(rec.wifi_channels_json) : rec.wifi_channels_json;
-                    pkts = arr[ch] || 0;
-                  } catch (e) {}
-                } else if (rec.wifi_busiest_channel === ch) {
-                  pkts = rec.wifi_max_packets || 0;
-                }
-                if (pkts > maxVal) maxVal = pkts;
-              });
-            } else {
-              slotRecs.forEach(rec => {
-                const ble = rec.ble_unique_devices || 0;
-                if (ble > maxVal) maxVal = ble;
-              });
-            }
-            cellData[c][r] = {
-              val: maxVal,
-              timeLabel: colLabels[c],
-              rowLabel: rowLabels[r],
-              isBle: r === 13
-            };
-          }
-        }
-      } else {
-        // 7-Day View
-        numCols = 7;
-        const dayDuration = 24 * 60 * 60 * 1000;
-        const today = new Date();
-        today.setHours(23, 59, 59, 999);
-        const endCutoff = today.getTime();
-        const startCutoff = endCutoff - 7 * dayDuration;
-
-        for (let c = 0; c < numCols; c++) {
-          const slotStart = startCutoff + c * dayDuration;
-          const slotEnd = slotStart + dayDuration;
-          const d = new Date(slotStart);
-          const dayName = d.toLocaleDateString([], { weekday: "short", month: "numeric", day: "numeric" });
-          colLabels.push(dayName);
-
-          const dayRecs = cachedRfRecords.filter(r => {
-            const t = new Date(r.timestamp).getTime();
-            return t >= slotStart && t < slotEnd;
-          });
-
-          cellData[c] = [];
-          for (let r = 0; r < numRows; r++) {
-            let maxVal = 0;
-            if (r < 13) {
-              const ch = r + 1;
-              dayRecs.forEach(rec => {
-                let pkts = 0;
-                if (rec.wifi_channels_json) {
-                  try {
-                    const arr = typeof rec.wifi_channels_json === "string" ? JSON.parse(rec.wifi_channels_json) : rec.wifi_channels_json;
-                    pkts = arr[ch] || 0;
-                  } catch (e) {}
-                } else if (rec.wifi_busiest_channel === ch) {
-                  pkts = rec.wifi_max_packets || 0;
-                }
-                if (pkts > maxVal) maxVal = pkts;
-              });
-            } else {
-              dayRecs.forEach(rec => {
-                const ble = rec.ble_unique_devices || 0;
-                if (ble > maxVal) maxVal = ble;
-              });
-            }
-            cellData[c][r] = {
-              val: maxVal,
-              timeLabel: dayName,
-              rowLabel: rowLabels[r],
-              isBle: r === 13
-            };
-          }
-        }
+      // Generate the past 7 days info (dayLabels[0] is 6 days ago, dayLabels[6] is Today)
+      const dayLabels = [];
+      for (let d = 6; d >= 0; d--) {
+        const dDate = new Date(todayMidnight - d * 86400 * 1000);
+        const dayStr = (d === 0) ? "Today" : ((d === 1) ? "Yest" : dDate.toLocaleDateString([], { weekday: "short" }));
+        dayLabels.push({
+          dateMs: dDate.getTime(),
+          label: dayStr,
+          fullDate: dDate.toLocaleDateString([], { month: "short", day: "numeric" })
+        });
       }
 
-      // Compute summary statistics
+      const rowMeta = [];
+      // 0..12: Today Wi-Fi channels 1..13
+      for (let ch = 1; ch <= 13; ch++) {
+        rowMeta.push({ group: 0, label: `CH ${ch}`, title: `Wi-Fi Channel ${ch} (Today)`, ch: ch, type: "wifi_ch" });
+      }
+      // 13: Today BLE
+      rowMeta.push({ group: 0, label: "BLE", title: "Bluetooth LE Density (Today)", type: "ble_today" });
+
+      // 14..20: 7 Days Most Active Wi-Fi Channel
+      for (let i = 0; i < 7; i++) {
+        const dl = dayLabels[i];
+        rowMeta.push({
+          group: 1,
+          label: `WF ${dl.label}`,
+          title: `Peak Wi-Fi Activity — ${dl.label} (${dl.fullDate})`,
+          dayIndex: i,
+          dateMs: dl.dateMs,
+          type: "wifi_7d"
+        });
+      }
+
+      // 21..27: 7 Days BLE Devices
+      for (let i = 0; i < 7; i++) {
+        const dl = dayLabels[i];
+        rowMeta.push({
+          group: 2,
+          label: `BL ${dl.label}`,
+          title: `BLE Unique Devices — ${dl.label} (${dl.fullDate})`,
+          dayIndex: i,
+          dateMs: dl.dateMs,
+          type: "ble_7d"
+        });
+      }
+
+      // Column labels: 00:00, 00:30, 01:00, ..., 23:30
+      const colLabels = [];
+      for (let c = 0; c < numCols; c++) {
+        const hour = Math.floor(c / 2);
+        const min = (c % 2) * 30;
+        colLabels.push(`${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
+      }
+
+      // Build cell data matrix: cellData[col][row]
+      const cellData = [];
+      const slotDuration = 30 * 60 * 1000;
+
       let globalMaxPkts = 0;
       let globalMaxBle = 0;
       const chTotals = new Array(14).fill(0);
 
       for (let c = 0; c < numCols; c++) {
+        cellData[c] = [];
+        const slotOffset = c * slotDuration;
+
         for (let r = 0; r < numRows; r++) {
-          const val = cellData[c][r].val;
-          if (r < 13) {
-            chTotals[r + 1] += val;
-            if (val > globalMaxPkts) globalMaxPkts = val;
-          } else {
-            if (val > globalMaxBle) globalMaxBle = val;
+          const meta = rowMeta[r];
+          let maxVal = 0;
+          let extraInfo = "";
+
+          if (meta.group === 0) {
+            // Today
+            const slotStart = todayMidnight + slotOffset;
+            const slotEnd = slotStart + slotDuration;
+            const slotRecs = cachedRfRecords.filter(rec => {
+              const t = new Date(rec.timestamp).getTime();
+              return t >= slotStart && t < slotEnd;
+            });
+
+            if (meta.type === "wifi_ch") {
+              const ch = meta.ch;
+              slotRecs.forEach(rec => {
+                let pkts = 0;
+                if (rec.wifi_channels_json) {
+                  try {
+                    const arr = typeof rec.wifi_channels_json === "string" ? JSON.parse(rec.wifi_channels_json) : rec.wifi_channels_json;
+                    pkts = arr[ch] || 0;
+                  } catch (e) {}
+                } else if (rec.wifi_busiest_channel === ch) {
+                  pkts = rec.wifi_max_packets || 0;
+                }
+                if (pkts > maxVal) maxVal = pkts;
+              });
+              chTotals[ch] += maxVal;
+              if (maxVal > globalMaxPkts) globalMaxPkts = maxVal;
+            } else {
+              // BLE today
+              slotRecs.forEach(rec => {
+                const ble = rec.ble_unique_devices || 0;
+                if (ble > maxVal) maxVal = ble;
+              });
+              if (maxVal > globalMaxBle) globalMaxBle = maxVal;
+            }
+          } else if (meta.group === 1) {
+            // Wi-Fi Peak 7 Days (row 14..20)
+            const slotStart = meta.dateMs + slotOffset;
+            const slotEnd = slotStart + slotDuration;
+            const slotRecs = cachedRfRecords.filter(rec => {
+              const t = new Date(rec.timestamp).getTime();
+              return t >= slotStart && t < slotEnd;
+            });
+
+            let peakCh = 0;
+            slotRecs.forEach(rec => {
+              const p = rec.wifi_max_packets || 0;
+              if (p > maxVal) {
+                maxVal = p;
+                peakCh = rec.wifi_busiest_channel || 0;
+              }
+            });
+            if (peakCh > 0) extraInfo = `CH ${peakCh}`;
+            if (maxVal > globalMaxPkts) globalMaxPkts = maxVal;
+          } else if (meta.group === 2) {
+            // BLE 7 Days (row 21..27)
+            const slotStart = meta.dateMs + slotOffset;
+            const slotEnd = slotStart + slotDuration;
+            const slotRecs = cachedRfRecords.filter(rec => {
+              const t = new Date(rec.timestamp).getTime();
+              return t >= slotStart && t < slotEnd;
+            });
+
+            slotRecs.forEach(rec => {
+              const ble = rec.ble_unique_devices || 0;
+              if (ble > maxVal) maxVal = ble;
+            });
+            if (maxVal > globalMaxBle) globalMaxBle = maxVal;
           }
+
+          cellData[c][r] = {
+            val: maxVal,
+            timeLabel: colLabels[c],
+            meta: meta,
+            extraInfo: extraInfo
+          };
         }
       }
 
+      // Summary KPIs
       let busiestCh = 1;
       let maxChSum = -1;
       let cleanestCh = 1;
@@ -2134,7 +2184,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       // Render to Canvas
       const dpr = window.devicePixelRatio || 1;
       const width = container.clientWidth || 800;
-      const height = 320;
+      const height = 520;
 
       canvas.width = width * dpr;
       canvas.height = height * dpr;
@@ -2144,18 +2194,31 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const ctx = canvas.getContext("2d");
       ctx.scale(dpr, dpr);
 
-      // Clear
+      // Background
       ctx.fillStyle = "#0d1117";
       ctx.fillRect(0, 0, width, height);
 
-      const margin = { left: 45, right: 15, top: 12, bottom: 26 };
+      const margin = { left: 54, right: 16, top: 22, bottom: 26 };
+      const groupDivider = 7; // Gap between groups
+      const totalDividers = 2 * groupDivider;
       const plotWidth = width - margin.left - margin.right;
-      const plotHeight = height - margin.top - margin.bottom;
+      const plotHeight = height - margin.top - margin.bottom - totalDividers;
 
-      const gapX = view === "30m" ? 1.5 : 3.0;
-      const gapY = 1.5;
+      const gapX = 1.2;
+      const gapY = 1.2;
       const cellW = (plotWidth - (numCols - 1) * gapX) / numCols;
       const cellH = (plotHeight - (numRows - 1) * gapY) / numRows;
+
+      // Calculate row Y positions accounting for group dividers
+      const rowYPositions = [];
+      let currentY = margin.top;
+      for (let r = 0; r < numRows; r++) {
+        if (r === 14 || r === 21) {
+          currentY += groupDivider;
+        }
+        rowYPositions[r] = currentY;
+        currentY += cellH + gapY;
+      }
 
       rfGridMeta = {
         margin,
@@ -2166,23 +2229,42 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         numCols,
         numRows,
         cellData,
+        rowYPositions,
+        rowMeta,
+        colLabels,
         width,
         height
       };
 
       const scaleNorm = Math.max(10, globalMaxPkts, globalMaxBle * 15);
 
+      // Draw Group Section Headings
+      ctx.font = "9px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "bottom";
+
+      ctx.fillStyle = "#8b949e";
+      ctx.fillText("2.4 GHz SPECTRUM (TODAY)", margin.left, margin.top - 5);
+
+      ctx.fillStyle = "#f59e0b";
+      ctx.fillText("WI-FI PEAK ACTIVITY (LAST 7 DAYS)", margin.left, rowYPositions[14] - 3);
+
+      ctx.fillStyle = "#38bdf8";
+      ctx.fillText("BLE DEVICE DENSITY (LAST 7 DAYS)", margin.left, rowYPositions[21] - 3);
+
+      // Draw Grid Cells
       for (let c = 0; c < numCols; c++) {
+        const x = margin.left + c * (cellW + gapX);
         for (let r = 0; r < numRows; r++) {
           const item = cellData[c][r];
-          const x = margin.left + c * (cellW + gapX);
-          const y = margin.top + r * (cellH + gapY);
+          const y = rowYPositions[r];
 
           if (item.val === 0) {
             ctx.fillStyle = "#161b22";
             ctx.fillRect(x, y, cellW, cellH);
           } else {
-            const effectiveVal = item.isBle ? item.val * 15 : item.val;
+            const isBle = (item.meta.type === "ble_today" || item.meta.type === "ble_7d");
+            const effectiveVal = isBle ? item.val * 15 : item.val;
             const t = Math.log(1 + effectiveVal) / Math.log(1 + scaleNorm);
             ctx.fillStyle = interpolatePalette(t, currentRfPalette);
             ctx.fillRect(x, y, cellW, cellH);
@@ -2190,32 +2272,32 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         }
       }
 
-      // Draw Row Labels (Y-Axis)
+      // Draw Row Labels
       ctx.font = "10px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
 
       for (let r = 0; r < numRows; r++) {
-        const y = margin.top + r * (cellH + gapY) + cellH / 2;
-        ctx.fillStyle = (r === 13) ? "#38bdf8" : "#8b949e";
-        ctx.fillText(rowLabels[r], margin.left - 6, y);
+        const y = rowYPositions[r] + cellH / 2;
+        const meta = rowMeta[r];
+        if (meta.group === 0) {
+          ctx.fillStyle = (r === 13) ? "#38bdf8" : "#8b949e";
+        } else if (meta.group === 1) {
+          ctx.fillStyle = "#f59e0b";
+        } else {
+          ctx.fillStyle = "#38bdf8";
+        }
+        ctx.fillText(meta.label, margin.left - 6, y);
       }
 
-      // Draw Column Labels (X-Axis)
+      // Draw Column Ticks (X-Axis)
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.fillStyle = "#8b949e";
 
-      if (view === "30m") {
-        for (let c = 0; c < numCols; c += 6) {
-          const x = margin.left + c * (cellW + gapX) + cellW / 2;
-          ctx.fillText(colLabels[c], x, margin.top + plotHeight + 6);
-        }
-      } else {
-        for (let c = 0; c < numCols; c++) {
-          const x = margin.left + c * (cellW + gapX) + cellW / 2;
-          ctx.fillText(colLabels[c], x, margin.top + plotHeight + 6);
-        }
+      for (let c = 0; c < numCols; c += 6) {
+        const x = margin.left + c * (cellW + gapX) + cellW / 2;
+        ctx.fillText(colLabels[c], x, rowYPositions[numRows - 1] + cellH + 6);
       }
 
       if (!rfCanvasInitialized) {
@@ -2234,29 +2316,37 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        const { margin, cellW, cellH, gapX, gapY, numCols, numRows, cellData } = rfGridMeta;
+        const { margin, cellW, cellH, gapX, numCols, numRows, cellData, rowYPositions } = rfGridMeta;
 
         if (
           mouseX >= margin.left &&
           mouseX <= margin.left + numCols * (cellW + gapX) &&
           mouseY >= margin.top &&
-          mouseY <= margin.top + numRows * (cellH + gapY)
+          mouseY <= rowYPositions[numRows - 1] + cellH
         ) {
           const col = Math.floor((mouseX - margin.left) / (cellW + gapX));
-          const row = Math.floor((mouseY - margin.top) / (cellH + gapY));
+          let row = -1;
+          for (let r = 0; r < numRows; r++) {
+            if (mouseY >= rowYPositions[r] && mouseY <= rowYPositions[r] + cellH) {
+              row = r;
+              break;
+            }
+          }
 
           if (col >= 0 && col < numCols && row >= 0 && row < numRows) {
             const item = cellData[col][row];
             if (tooltip) {
-              const unit = item.isBle ? "devices" : "pkts/s";
+              const isBle = (item.meta.type === "ble_today" || item.meta.type === "ble_7d");
+              const unit = isBle ? "unique devices" : "pkts/s";
+              const extra = item.extraInfo ? ` (${item.extraInfo})` : "";
               tooltip.innerHTML = `
-                <div style="font-weight:600; color:${item.isBle ? '#38bdf8' : '#fbbf24'};">${item.rowLabel}</div>
+                <div style="font-weight:600; color:${isBle ? '#38bdf8' : '#fbbf24'};">${item.meta.title}</div>
                 <div>Time: ${item.timeLabel}</div>
-                <div>Activity: <b>${item.val}</b> ${unit}</div>
+                <div>Activity: <b>${item.val}</b> ${unit}${extra}</div>
               `;
               tooltip.style.display = "block";
-              const ttLeft = Math.min(container.clientWidth - 150, mouseX + 12);
-              const ttTop = Math.max(10, mouseY - 40);
+              const ttLeft = Math.min(container.clientWidth - 180, mouseX + 12);
+              const ttTop = Math.max(10, mouseY - 45);
               tooltip.style.left = ttLeft + "px";
               tooltip.style.top = ttTop + "px";
             }
@@ -2272,7 +2362,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
       window.addEventListener("resize", () => {
         if (!isRfCollapsed && cachedRfRecords.length > 0) {
-          renderRfHeatmap(cachedRfRecords, currentRfView);
+          renderRfHeatmap(cachedRfRecords);
         }
       });
     }
