@@ -408,7 +408,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="title-area">
         <h1>
           <span>☀️</span> Solar Telemetry Fleet
-          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.0</span>
+          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.1</span>
         </h1>
         <div class="subtitle" id="station-subtitle">Connecting to Cloudflare D1 Edge Ingestion...</div>
       </div>
@@ -601,9 +601,9 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <p>ESP32 Solar Telemetry Fleet &bull; Minimal SPIFFS &bull; Dual OTA &bull; Cloudflare Edge &amp; D1 Database</p>
       <p>
         <a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull;
-        <span>Website v1.1.0</span> &bull;
+        <span>Website v1.1.1</span> &bull;
         <span>Firmware v<span id="fw-version">1.0.2</span> (Stable)</span> &bull;
-        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.0 Canary</span> &bull;
+        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.1 Canary</span> &bull;
         <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a>
       </p>
     </footer>
@@ -649,7 +649,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
               <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;color:var(--text-muted);">Firmware Release Channel:</label>
               <select id="flasherVerSelect" style="width:100%;" onchange="updateFlasherManifest()">
                 <option value="1.0.2" selected>v1.0.2 Stable (Production)</option>
-                <option value="1.1.0-canary">v1.1.0 Canary (Deep Sleep, 1h Batch, INA3221)</option>
+                <option value="1.1.1-canary">v1.1.1 Canary (30s Light Sleep, 8-Stage Benchmarks, INA3221)</option>
               </select>
             </div>
           </div>
@@ -866,7 +866,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
       const btn = document.getElementById("espWebInstallBtn");
       let manifestFile = "manifest.json";
-      if (ver === "1.1.0-canary") {
+      if (ver === "1.1.1-canary" || ver === "1.1.0-canary") {
         manifestFile = isUpdate ? "manifest-canary-update.json" : "manifest-canary.json";
       } else {
         manifestFile = isUpdate ? "manifest-update.json" : "manifest.json";
@@ -1421,9 +1421,14 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         let measure = r.cycle_measure_ms;
         let wifi = r.cycle_wifi_ms;
         let ip = r.cycle_ip_ms;
+        let dns = r.cycle_dns_ms;
+        let tcp = r.cycle_tcp_ms;
+        let tls = r.cycle_tls_ms;
+        let post = r.cycle_post_ms;
+        let server = r.cycle_server_ms;
         let upload = r.cycle_upload_ms;
         let total = r.cycle_total_ms;
-        if ((measure == null || wifi == null) && r.raw_payload) {
+        if (r.raw_payload) {
           try {
             const raw = typeof r.raw_payload === "string" ? JSON.parse(r.raw_payload) : r.raw_payload;
             const cur = raw?.current_cycle;
@@ -1431,6 +1436,11 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
             measure = measure ?? prev?.measure_ms ?? cur?.measure_ms ?? null;
             wifi = wifi ?? prev?.wifi_connect_ms ?? cur?.wifi_connect_ms ?? null;
             ip = ip ?? prev?.ip_obtain_ms ?? cur?.ip_obtain_ms ?? null;
+            dns = dns ?? prev?.dns_ms ?? cur?.dns_ms ?? null;
+            tcp = tcp ?? prev?.tcp_ms ?? cur?.tcp_ms ?? null;
+            tls = tls ?? prev?.tls_ms ?? cur?.tls_ms ?? null;
+            post = post ?? prev?.post_ms ?? cur?.post_ms ?? null;
+            server = server ?? prev?.server_ms ?? cur?.server_ms ?? null;
             upload = upload ?? prev?.upload_ms ?? null;
             total = total ?? prev?.total_cycle_ms ?? (upload && wifi && measure ? (measure + wifi + (ip || 0) + upload) : null);
           } catch(e) {}
@@ -1440,12 +1450,17 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           cycle_measure_ms: measure,
           cycle_wifi_ms: wifi,
           cycle_ip_ms: ip,
+          cycle_dns_ms: dns,
+          cycle_tcp_ms: tcp,
+          cycle_tls_ms: tls,
+          cycle_post_ms: post,
+          cycle_server_ms: server,
           cycle_upload_ms: upload,
           cycle_total_ms: total
         };
       });
       const timed = normalized.filter(r => r.cycle_measure_ms != null || r.cycle_wifi_ms != null);
-      if (timed.length === 0) return { labels: [], measureMs: [], wifiMs: [], ipMs: [], uploadMs: [], timedRecords: [] };
+      if (timed.length === 0) return { labels: [], measureMs: [], wifiMs: [], ipMs: [], dnsMs: [], tcpMs: [], tlsMs: [], postMs: [], uploadMs: [], timedRecords: [] };
 
       const now = Date.now();
 

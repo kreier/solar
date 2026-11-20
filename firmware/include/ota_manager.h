@@ -16,9 +16,17 @@ public:
             return false;
         }
 
+#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV)
+        String chip = "esp32s3";
+#elif defined(CONFIG_IDF_TARGET_ESP32C5) || defined(CONFIG_IDF_TARGET_ESP32C6) || defined(ARDUINO_ESP32C5_DEV) || defined(ARDUINO_ESP32C6_DEV)
+        String chip = "esp32c5";
+#else
+        String chip = "esp32";
+#endif
+
         String checkEndpoint = workerUrl;
         if (checkEndpoint.endsWith("/")) checkEndpoint.remove(checkEndpoint.length() - 1);
-        checkEndpoint += "/api/ota?station_id=" + stationId + "&version=" + currentVersion;
+        checkEndpoint += "/api/ota?station_id=" + stationId + "&version=" + currentVersion + "&chip=" + chip;
 
         Serial.printf("[OTA] Checking update at: %s\n", checkEndpoint.c_str());
 

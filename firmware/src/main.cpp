@@ -332,9 +332,9 @@ void runCycle() {
                                       (config.power_mode == 0) ? rtc_samples : nullptr,
                                       (config.power_mode == 0) ? rtc_sample_count : 0);
 
-            // Daily automatic OTA check (every 144 cycles = ~24 hours, plus 1st cycle)
-            if ((timer.getBootCount() % 144) == 1) {
-                Serial.println(F("[OTA] Checking for daily firmware update..."));
+            // Automatic OTA check (every 120 cycles in balanced mode / daily, plus on early boot cycles)
+            if (timer.getBootCount() <= 3 || (timer.getBootCount() % 120) == 1) {
+                Serial.println(F("[OTA] Checking for firmware update..."));
                 OtaManager::checkForUpdate(config.worker_url, config.station_id, FIRMWARE_VERSION);
             }
         } else {
@@ -351,13 +351,13 @@ void runCycle() {
 
     timer.finalizeAndSaveForNextCycle();
 
-    // 4. Enter Sleep
+    // 4. Enter Sleep (30 seconds in Balanced mode for frequent telemetry, 600s in Minimal Energy mode)
     if (config.power_mode == 0) {
         Serial.println(F("[Power] Entering DEEP SLEEP for 10 minutes (600s)..."));
         SleepManager::enterDeepSleep(600);
     } else {
-        Serial.println(F("[Power] Entering LIGHT SLEEP for 10 minutes (600s)..."));
-        SleepManager::enterLightSleep(600);
+        Serial.println(F("[Power] Entering LIGHT SLEEP for 30 seconds..."));
+        SleepManager::enterLightSleep(30);
     }
 }
 

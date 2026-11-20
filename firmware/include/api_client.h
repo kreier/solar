@@ -11,7 +11,7 @@
 #include "app_config.h"
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.1.0-canary"
+#define FIRMWARE_VERSION "1.1.1-canary"
 #endif
 
 struct BufferedSample {
@@ -127,6 +127,29 @@ public:
         }
     }
 
+    static void printExecutionLatencyBreakdown(CycleTimer &timer,
+                                              uint32_t dns_ms, uint32_t tcp_ms,
+                                              uint32_t tls_ms, uint32_t post_ms,
+                                              uint32_t server_ms, int httpCode,
+                                              const String &host, const IPAddress &serverIp,
+                                              size_t payloadBytes) {
+        Serial.println(F("\n=================================================="));
+        Serial.println(F(" [8-Stage Execution Latency & Benchmark Breakdown]"));
+        Serial.println(F("=================================================="));
+        Serial.printf("  1. Sensor Measure      : %4lu ms (ADC eFuse / INA3221)\n", (unsigned long)timer.getMeasureDuration());
+        Serial.printf("  2. Wi-Fi Connect       : %4lu ms (SSID: '%s', Ch: %d, RSSI: %d dBm)\n", (unsigned long)timer.getWifiConnectDuration(), WiFi.SSID().c_str(), WiFi.channel(), (int)WiFi.RSSI());
+        Serial.printf("  3. IP Acquisition      : %4lu ms (%s)\n", (unsigned long)timer.getIpObtainDuration(), WiFi.localIP().toString().c_str());
+        Serial.printf("  4. DNS Lookup          : %4lu ms (%s -> %s)\n", (unsigned long)dns_ms, host.c_str(), serverIp.toString().c_str());
+        Serial.printf("  5. TCP 3-Way Handshake : %4lu ms (Port 443)\n", (unsigned long)tcp_ms);
+        Serial.printf("  6. TLS Handshake       : %4lu ms (mbedTLS SNI, Insecure=1)\n", (unsigned long)tls_ms);
+        Serial.printf("  7. HTTP POST Payload   : %4lu ms (%zu bytes)\n", (unsigned long)post_ms, payloadBytes);
+        Serial.printf("  8. Edge Server Exec    : %4lu ms (HTTP %d)\n", (unsigned long)server_ms, httpCode);
+        Serial.println(F("--------------------------------------------------"));
+        Serial.printf("  >> Total Upload Phase  : %4lu ms\n", (unsigned long)(dns_ms + tcp_ms + tls_ms + post_ms + server_ms));
+        Serial.printf("  >> Total Active Cycle  : %4lu ms\n", (unsigned long)timer.getTotalActiveDuration());
+        Serial.println(F("==================================================\n"));
+    }
+
     static bool uploadTelemetry(const String &workerUrl, const String &deviceToken,
                                 const SolarConfig &config, const AdcReadings &readings,
                                 const Ina3221Readings &inaReadings, CycleTimer &timer,
@@ -153,7 +176,9 @@ public:
 
         if (!dnsOk) {
             Serial.printf("[API] DNS lookup failed for '%s'\n", host.c_str());
+            timer.setUploadBreakdown(dns_ms, 0, 0, 0, 0);
             timer.markUploadEnd(0);
+            printExecutionLatencyBreakdown(timer, dns_ms, 0, 0, 0, 0, 0, host, serverIp, 0);
             return false;
         }
 
@@ -164,6 +189,26 @@ public:
         bool tcpOk = tcpClient.connect(serverIp, port);
         uint32_t tcp_ms = millis() - t_tcp_start;
         tcpClient.stop();
+
+        // Step 3: TLS Handshake (mbedTLS, skip certificate chain verification)
+        WiFiClientSecure secClient;
+        secClient.setInsecure(); // Skip certificate verification overhead
+        secClient.setTimeout(8000);
+
+        uint32_t t_tls_start = millis();
+        // Crucial: Must pass host.c_str() for SNI (Server Name Indication) so Cloudflare routes the TLS handshake!
+        bool tlsOk = secClient.connect(host.c_str(), port);
+        uint32_t tls_ms = millis() - t_tls_start;
+
+        if (!tlsOk) {
+            char errBuf[100] = {0};
+            secClient.lastError(errBuf, sizeof(errBuf));
+            Serial.printf("[API] TLS handshake to %s failed: %s\n", host.c_str(), errBuf);
+            timer.setUploadBreakdown(dns_ms, tcp_ms, tls_ms, 0, 0);
+            timer.markUploadEnd(0);
+            printExecutionLatencyBreakdown(timer, dns_ms, tcp_ms, tls_ms, 0, 0, 0, host, serverIp, 0);
+            return false;
+        }
 
         // Build JSON Telemetry Payload
         JsonDocument doc;
@@ -248,38 +293,23 @@ public:
             prevObj["http_code"] = prev.http_code;
         }
 
-        // Current cycle partial benchmark
+        // Current cycle benchmark (including DNS, TCP, TLS)
         JsonObject currObj = doc["current_cycle"].to<JsonObject>();
         currObj["measure_ms"] = timer.getMeasureDuration();
         currObj["wifi_connect_ms"] = timer.getWifiConnectDuration();
         currObj["ip_obtain_ms"] = timer.getIpObtainDuration();
         currObj["dns_ms"] = dns_ms;
         currObj["tcp_ms"] = tcp_ms;
+        currObj["tls_ms"] = tls_ms;
 
         String jsonPayload;
         serializeJson(doc, jsonPayload);
-
-        // Step 3: TLS Handshake (mbedTLS, skip certificate chain verification)
-        WiFiClientSecure secClient;
-        secClient.setInsecure(); // Skip certificate verification overhead
-        secClient.setTimeout(8000);
-
-        uint32_t t_tls_start = millis();
-        bool tlsOk = secClient.connect(serverIp, port);
-        uint32_t tls_ms = millis() - t_tls_start;
-
-        if (!tlsOk) {
-            Serial.printf("[API] TLS handshake to %s failed\n", serverIp.toString().c_str());
-            timer.setUploadBreakdown(dns_ms, tcp_ms, tls_ms, 0, 0);
-            timer.markUploadEnd(0);
-            return false;
-        }
 
         // Step 4: HTTP POST Transmission
         uint32_t t_post_start = millis();
         secClient.printf("POST %s HTTP/1.1\r\n", path.c_str());
         secClient.printf("Host: %s\r\n", host.c_str());
-        secClient.println("User-Agent: SolarESP32/1.1.0");
+        secClient.printf("User-Agent: SolarESP32/%s\r\n", FIRMWARE_VERSION);
         secClient.println("Connection: close");
         secClient.println("Content-Type: application/json");
         secClient.printf("Authorization: Bearer %s\r\n", deviceToken.c_str());
@@ -316,13 +346,7 @@ public:
         timer.markUploadEnd(httpCode);
 
         // Print Granular Latency Breakdown to Serial
-        Serial.println(F("\n[Benchmark] Execution Latency & Upload Breakdown:"));
-        Serial.printf("  ├── DNS Lookup         : %4lu ms (%s -> %s)\n", (unsigned long)dns_ms, host.c_str(), serverIp.toString().c_str());
-        Serial.printf("  ├── TCP 3-Way Handshake: %4lu ms (Port %u)\n", (unsigned long)tcp_ms, port);
-        Serial.printf("  ├── TLS Handshake      : %4lu ms (mbedTLS, Cert Chain Verify Skipped)\n", (unsigned long)tls_ms);
-        Serial.printf("  ├── HTTP POST Payload  : %4lu ms (%d bytes)\n", (unsigned long)post_ms, jsonPayload.length());
-        Serial.printf("  └── Server Execution   : %4lu ms\n", (unsigned long)server_ms);
-        Serial.printf("  >>> Total Upload Time  : %4lu ms (HTTP %d)\n\n", (unsigned long)timer.getUploadDuration(), httpCode);
+        printExecutionLatencyBreakdown(timer, dns_ms, tcp_ms, tls_ms, post_ms, server_ms, httpCode, host, serverIp, jsonPayload.length());
 
         if (httpCode == 200 || httpCode == 201) {
             Serial.printf("[API] Telemetry accepted! Response: %s\n", respBody.c_str());

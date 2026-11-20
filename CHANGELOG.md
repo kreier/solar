@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-11-20
+
+### Fixed & Added
+- **TLS Handshake Fix with SNI**:
+  - Resolved `[API] TLS handshake to 104.21.95.177 failed` by passing hostname (`secClient.connect(host.c_str(), port)`) instead of raw IP, ensuring Server Name Indication (SNI) is delivered to Cloudflare edge proxy.
+- **8-Stage Execution Latency Breakdown Output to Serial**:
+  - Serial terminal now prints a dedicated formatted banner with all 8 execution stages:
+    1. Sensor Measure (ADC eFuse / INA3221)
+    2. Wi-Fi Connect (SSID, Channel, RSSI)
+    3. IP Acquisition (DHCP / Static IP)
+    4. DNS Lookup (Domain resolution)
+    5. TCP 3-Way Handshake (Port 443)
+    6. TLS Handshake (mbedTLS with SNI)
+    7. HTTP POST Payload Transmission
+    8. Edge Server Execution & Response
+    (Plus Total Upload Phase and Total Active Cycle duration).
+- **30-Second Balanced Mode Cadence**:
+  - Adjusted Light Sleep duration from 10 minutes (600s) to 30 seconds in Balanced mode, publishing telemetry and benchmarks every 30 seconds.
+- **Multi-Microcontroller Automatic OTA Updates**:
+  - Upgraded canary release channel to `v1.1.1-canary` on Cloudflare Worker.
+  - Automatic chip detection in `/api/ota` ensuring ESP32-S3 devices download `firmware-esp32s3-v1.1.1-canary.bin`.
+  - Added raw GitHub fallback in worker download proxy for instant binary availability upon push.
+- **Website v1.1.1 Release**:
+  - Bumped dashboard header and footer to `Web v1.1.1`.
+  - Updated web installer flasher options and manifests for `v1.1.1 Canary`.
+  - Upgraded timing records normalization to extract all 8 latency stages from telemetry payloads and D1 database columns.
+
 ## [1.1.0] - 2026-11-20
 
 ### Added

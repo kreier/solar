@@ -6,7 +6,7 @@ workers_dev = true
 
 [vars]
 STABLE_VERSION = "1.0.2"
-CANARY_VERSION = "1.1.0-canary"
+CANARY_VERSION = "1.1.1-canary"
 WORKER_URL = "https://solar.kreier.workers.dev"
 
 # Cloudflare D1 Database Binding

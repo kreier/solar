@@ -34,7 +34,7 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
 
   const stationId = url.searchParams.get("station_id")?.trim();
   const currentVersion = url.searchParams.get("version")?.trim() || "0.0.0";
-  const chip = url.searchParams.get("chip")?.trim() || "esp32";
+  let chip = url.searchParams.get("chip")?.trim();
 
   if (!stationId) {
     return new Response(JSON.stringify({ error: "Missing required query parameter: station_id" }), {
@@ -43,12 +43,24 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
     });
   }
 
+  // Auto-detect chip if not explicitly sent by node
+  if (!chip) {
+    const sIdLower = stationId.toLowerCase();
+    if (sIdLower.includes("s3")) {
+      chip = "esp32s3";
+    } else if (sIdLower.includes("c5") || sIdLower.includes("c6")) {
+      chip = "esp32c5";
+    } else {
+      chip = "esp32";
+    }
+  }
+
   const db = new Database(env);
   const station = await db.getStation(stationId);
 
   // Check if station accepts canary channel
   const isCanary = (station?.is_canary === 1) || (url.searchParams.get("canary") === "1");
-  const defaultVersion = isCanary ? (env.CANARY_VERSION || "1.1.0-canary") : (env.STABLE_VERSION || "1.0.2");
+  const defaultVersion = isCanary ? (env.CANARY_VERSION || "1.1.1-canary") : (env.STABLE_VERSION || "1.0.2");
   let targetVersion = station?.target_version?.trim() || defaultVersion;
 
   // Check if station is already on or ahead of target version
@@ -144,6 +156,23 @@ export async function handleFirmwareDownload(filename: string, env: Env): Promis
     }
   } catch (err) {
     console.warn("[OTA] GitHub Pages proxy failed:", err);
+  }
+
+  // 4. Try raw GitHub repo main branch (immediately available on push)
+  const rawGhUrl = `https://raw.githubusercontent.com/kreier/solar/main/docs/firmware/${filename}`;
+  try {
+    const rawResponse = await fetch(rawGhUrl, {
+      headers: { "User-Agent": "kreier-solar-worker" }
+    });
+    if (rawResponse.ok && rawResponse.body) {
+      const headers = new Headers();
+      headers.set("Content-Type", "application/octet-stream");
+      headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+      headers.set("Access-Control-Allow-Origin", "*");
+      return new Response(rawResponse.body, { status: 200, headers });
+    }
+  } catch (err) {
+    console.warn("[OTA] Raw GitHub proxy failed:", err);
   }
 
   return Response.redirect(ghUrl, 302);
