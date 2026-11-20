@@ -1,6 +1,8 @@
 export interface Env {
   DB: D1Database;
   MASTER_PHRASE?: string;
+  ADMIN_USERNAME?: string;
+  ADMIN_PASSWORD?: string;
   STABLE_VERSION?: string;
   CANARY_VERSION?: string;
   WORKER_URL?: string;

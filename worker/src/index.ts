@@ -4,6 +4,7 @@ import { handleRegister } from "./register";
 import { handleTelemetry } from "./telemetry";
 import { handleOta, handleFirmwareDownload } from "./ota";
 import { renderDashboardHtml } from "./frontend";
+import { validateAdminCredentials, createAdminToken, checkAdminAuth } from "./auth";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -58,9 +59,9 @@ export default {
 
       // ESP Web Tools Manifests for Web Serial Flashing
       if (path === "/manifest.json" || path.startsWith("/manifest-")) {
-        const isCanary = path.includes("canary") || url.searchParams.get("version") === "1.1.3-canary";
+        const isCanary = path.includes("canary") || url.searchParams.get("version") === "1.1.4-canary";
         const isUpdate = path.includes("update") || url.searchParams.get("mode") === "update";
-        const versionStr = isCanary ? (env.CANARY_VERSION || "1.1.3-canary") : (env.STABLE_VERSION || "1.0.2");
+        const versionStr = isCanary ? (env.CANARY_VERSION || "1.1.4-canary") : (env.STABLE_VERSION || "1.1.4");
 
         const builds = isUpdate
           ? [
@@ -124,8 +125,78 @@ export default {
         );
       }
 
+      // 4a. Admin Authentication Endpoints
+      if (path === "/api/auth/login" && request.method === "POST") {
+        try {
+          const body = await request.json<{ username?: string; password?: string }>();
+          if (!body.username || !body.password) {
+            return withCors(
+              new Response(JSON.stringify({ error: "Username and password required" }), {
+                status: 400,
+                headers: { "Content-Type": "application/json" }
+              })
+            );
+          }
+          if (validateAdminCredentials(body.username, body.password, env)) {
+            const tokenInfo = await createAdminToken(body.username, env);
+            return withCors(
+              new Response(
+                JSON.stringify({
+                  success: true,
+                  token: tokenInfo.token,
+                  expires_at: tokenInfo.expires_at,
+                  username: body.username
+                }),
+                { status: 200, headers: { "Content-Type": "application/json" } }
+              )
+            );
+          } else {
+            return withCors(
+              new Response(JSON.stringify({ error: "Invalid username or password" }), {
+                status: 401,
+                headers: { "Content-Type": "application/json" }
+              })
+            );
+          }
+        } catch {
+          return withCors(
+            new Response(JSON.stringify({ error: "Invalid JSON payload" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" }
+            })
+          );
+        }
+      }
+
+      if (path === "/api/auth/verify") {
+        const isAuthed = await checkAdminAuth(request, env);
+        if (isAuthed) {
+          return withCors(
+            new Response(JSON.stringify({ valid: true }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" }
+            })
+          );
+        } else {
+          return withCors(
+            new Response(JSON.stringify({ valid: false, error: "Unauthorized" }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" }
+            })
+          );
+        }
+      }
+
       // 4b. Update Station Settings (Mode, Canary, Lipo, Location, Target Version)
       if (path === "/api/station/settings" && request.method === "POST") {
+        if (!(await checkAdminAuth(request, env))) {
+          return withCors(
+            new Response(JSON.stringify({ error: "Unauthorized. Admin credentials required." }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" }
+            })
+          );
+        }
         const body = await request.json<{
           station_id: string;
           power_mode?: number;
@@ -158,6 +229,14 @@ export default {
 
       // 4c. Legacy Toggle Canary Channel for a Station
       if (path === "/api/station/canary" && request.method === "POST") {
+        if (!(await checkAdminAuth(request, env))) {
+          return withCors(
+            new Response(JSON.stringify({ error: "Unauthorized. Admin credentials required." }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" }
+            })
+          );
+        }
         const body = await request.json<{ station_id: string; is_canary: number }>();
         if (!body.station_id) {
           return withCors(
@@ -188,6 +267,14 @@ export default {
         (path === "/api/station" && request.method === "DELETE") ||
         (path === "/api/station/delete" && request.method === "POST")
       ) {
+        if (!(await checkAdminAuth(request, env))) {
+          return withCors(
+            new Response(JSON.stringify({ error: "Unauthorized. Admin credentials required." }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" }
+            })
+          );
+        }
         let stationId = url.searchParams.get("station_id")?.trim();
         if (!stationId && request.headers.get("Content-Type")?.includes("application/json")) {
           try {
@@ -219,6 +306,14 @@ export default {
 
       // 4e. Prune Telemetry Data for Station
       if (path === "/api/station/prune" && request.method === "POST") {
+        if (!(await checkAdminAuth(request, env))) {
+          return withCors(
+            new Response(JSON.stringify({ error: "Unauthorized. Admin credentials required." }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" }
+            })
+          );
+        }
         const body = await request.json<{ station_id: string; older_than_days: number }>();
         if (!body.station_id || typeof body.older_than_days !== "number") {
           return withCors(

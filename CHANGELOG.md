@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2026-11-21
+
+### Added & Changed
+- **Stable Firmware Release v1.1.4**:
+  - Promoted tested features from canary to official stable channel for all edge nodes (ESP32 DevKit, ESP32-S3, and ESP32-C5/C6).
+  - Nodes running v1.0.2 automatically detect and download v1.1.4 on their scheduled OTA cadence.
+- **ESP32-S3 16MB Flash & Dual 4MB OTA Partition Architecture**:
+  - Fully configured 16MB flash size parameters in PlatformIO (`board_upload.flash_size = 16MB`, `board_upload.maximum_size = 16777216`).
+  - Partition layout: 4MB active application partition (`app0`), 4MB OTA update partition (`app1`), ~7.8MB SPIFFS/LittleFS filesystem partition (`spiffs`), and 64KB coredump partition.
+  - Generates 16MB bootloader headers (`flash_size: 16MB`), eliminating ROM bootloader address-wrap failures.
+- **Administrator Authentication for Web Settings**:
+  - Secure login view embedded in Station Settings modal requiring `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
+  - Secure signed HMAC session tokens issued via `POST /api/auth/login` and verified by `worker/src/auth.ts`.
+  - Protected backend routes: `/api/station/settings`, `/api/station/canary`, `/api/station/prune`, and `/api/station` (DELETE) require valid admin bearer tokens.
+  - Interactive "Log Out" functionality and session expiration handling.
+- **Web Dashboard Release v1.1.4**:
+  - Deployed to Cloudflare Edge Worker SSR (`solar.kreier.workers.dev`) and static mirror on GitHub Pages.
+  - Updated Web Serial installer manifests and direct firmware download matrices to v1.1.4.
+
 ## [1.1.3] - 2026-11-20
 
 ### Added & Changed
