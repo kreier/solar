@@ -132,7 +132,8 @@ export async function handleFirmwareDownload(filename: string, env: Env): Promis
     const rawResponse = await fetch(rawGhUrl, {
       headers: { "User-Agent": "kreier-solar-worker" }
     });
-    if (rawResponse.ok && rawResponse.body) {
+    console.log(`[OTA] rawResponse url: ${rawGhUrl}, status: ${rawResponse.status}`);
+    if (rawResponse.ok) {
       const buffer = await rawResponse.arrayBuffer();
       return createBinaryResponse(buffer, filename);
     }
@@ -147,7 +148,7 @@ export async function handleFirmwareDownload(filename: string, env: Env): Promis
       redirect: "follow",
       headers: { "User-Agent": "kreier-solar-worker" }
     });
-    if (pagesResponse.ok && pagesResponse.body) {
+    if (pagesResponse.ok) {
       const buffer = await pagesResponse.arrayBuffer();
       return createBinaryResponse(buffer, filename);
     }
@@ -165,7 +166,7 @@ export async function handleFirmwareDownload(filename: string, env: Env): Promis
       redirect: "follow",
       headers: { "User-Agent": "kreier-solar-worker" }
     });
-    if (ghResponse.ok && ghResponse.body) {
+    if (ghResponse.ok) {
       const buffer = await ghResponse.arrayBuffer();
       return createBinaryResponse(buffer, filename);
     }
