@@ -100,6 +100,22 @@ export interface StationRecord {
   battery_mv: number | null;
   solar_mv: number | null;
   temp_c: number | null;
+  power_mode?: number | null;
+  enable_lipo?: number | null;
+}
+
+export interface UpdateStationSettingsRequest {
+  station_id: string;
+  power_mode?: number;
+  enable_lipo?: number;
+  location?: string;
+  is_canary?: number;
+  target_version?: string | null;
+}
+
+export interface PruneMeasurementsRequest {
+  station_id: string;
+  older_than_days: number;
 }
 
 export interface MeasurementRecord {

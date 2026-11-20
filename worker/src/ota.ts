@@ -60,7 +60,7 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
 
   // Check if station accepts canary channel
   const isCanary = (station?.is_canary === 1) || (url.searchParams.get("canary") === "1");
-  const defaultVersion = isCanary ? (env.CANARY_VERSION || "1.1.2-canary") : (env.STABLE_VERSION || "1.0.2");
+  const defaultVersion = isCanary ? (env.CANARY_VERSION || "1.1.3-canary") : (env.STABLE_VERSION || "1.0.2");
   let targetVersion = station?.target_version?.trim() || defaultVersion;
 
   // Check if station is already on or ahead of target version
@@ -73,6 +73,8 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
         current_version: currentVersion,
         target_version: targetVersion,
         is_canary: isCanary ? 1 : 0,
+        power_mode: station?.power_mode ?? 0,
+        enable_lipo: station?.enable_lipo ?? 0,
         message: "Firmware is already up to date"
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
@@ -90,6 +92,8 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
       current_version: currentVersion,
       target_version: targetVersion,
       is_canary: isCanary ? 1 : 0,
+      power_mode: station?.power_mode ?? 0,
+      enable_lipo: station?.enable_lipo ?? 0,
       url: downloadUrl
     }),
     {

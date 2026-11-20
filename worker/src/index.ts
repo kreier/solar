@@ -58,9 +58,9 @@ export default {
 
       // ESP Web Tools Manifests for Web Serial Flashing
       if (path === "/manifest.json" || path.startsWith("/manifest-")) {
-        const isCanary = path.includes("canary") || url.searchParams.get("version") === "1.1.2-canary";
+        const isCanary = path.includes("canary") || url.searchParams.get("version") === "1.1.3-canary";
         const isUpdate = path.includes("update") || url.searchParams.get("mode") === "update";
-        const versionStr = isCanary ? "1.1.2-canary" : "1.0.2";
+        const versionStr = isCanary ? (env.CANARY_VERSION || "1.1.3-canary") : (env.STABLE_VERSION || "1.0.2");
 
         const builds = isUpdate
           ? [
@@ -124,7 +124,39 @@ export default {
         );
       }
 
-      // 4b. Toggle Canary Channel for a Station
+      // 4b. Update Station Settings (Mode, Canary, Lipo, Location, Target Version)
+      if (path === "/api/station/settings" && request.method === "POST") {
+        const body = await request.json<{
+          station_id: string;
+          power_mode?: number;
+          enable_lipo?: number;
+          location?: string;
+          is_canary?: number;
+          target_version?: string | null;
+        }>();
+        if (!body.station_id) {
+          return withCors(
+            new Response(JSON.stringify({ error: "Missing required field: station_id" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" }
+            })
+          );
+        }
+        const db = new Database(env);
+        await db.updateStationSettings(body.station_id, body);
+        return withCors(
+          new Response(
+            JSON.stringify({
+              success: true,
+              station_id: body.station_id,
+              settings: body
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        );
+      }
+
+      // 4c. Legacy Toggle Canary Channel for a Station
       if (path === "/api/station/canary" && request.method === "POST") {
         const body = await request.json<{ station_id: string; is_canary: number }>();
         if (!body.station_id) {
@@ -145,6 +177,66 @@ export default {
               success: true,
               station_id: body.station_id,
               is_canary: body.is_canary ? 1 : 0
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        );
+      }
+
+      // 4d. Delete Station and all associated Telemetry
+      if (
+        (path === "/api/station" && request.method === "DELETE") ||
+        (path === "/api/station/delete" && request.method === "POST")
+      ) {
+        let stationId = url.searchParams.get("station_id")?.trim();
+        if (!stationId && request.headers.get("Content-Type")?.includes("application/json")) {
+          try {
+            const body = await request.json<{ station_id: string }>();
+            stationId = body.station_id?.trim();
+          } catch (_) {}
+        }
+        if (!stationId) {
+          return withCors(
+            new Response(JSON.stringify({ error: "Missing required field: station_id" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" }
+            })
+          );
+        }
+        const db = new Database(env);
+        const result = await db.deleteStation(stationId);
+        return withCors(
+          new Response(
+            JSON.stringify({
+              success: true,
+              station_id: stationId,
+              ...result
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        );
+      }
+
+      // 4e. Prune Telemetry Data for Station
+      if (path === "/api/station/prune" && request.method === "POST") {
+        const body = await request.json<{ station_id: string; older_than_days: number }>();
+        if (!body.station_id || typeof body.older_than_days !== "number") {
+          return withCors(
+            new Response(JSON.stringify({ error: "Missing required fields: station_id, older_than_days" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" }
+            })
+          );
+        }
+        const db = new Database(env);
+        const pruned = await db.pruneMeasurements(body.station_id, body.older_than_days);
+        return withCors(
+          new Response(
+            JSON.stringify({
+              success: true,
+              station_id: body.station_id,
+              older_than_days: body.older_than_days,
+              deleted_measurements: pruned
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
           )

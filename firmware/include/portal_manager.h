@@ -108,7 +108,7 @@ public:
 
             html += F("<label class='checkbox-label'>");
             html += String("<input type='checkbox' name='is_canary' value='1'") + (config.is_canary ? " checked" : "") + ">";
-            html += F("<span>Accept Canary Releases (v1.1.0-canary OTA)</span></label>");
+            html += F("<span>Accept Canary Releases (v1.1.3-canary OTA)</span></label>");
             html += F("</div>");
 
             // 2. Wi-Fi Connectivity & Live Test
@@ -195,7 +195,7 @@ public:
             html += F("<label>Physical Location</label>");
             html += "<input type='text' name='location' value='" + String(config.location) + "' required>";
             html += F("<label>Cloudflare MASTER_PHRASE</label>");
-            html += "<input type='password' name='master_phrase' value='" + String(config.master_phrase) + "' placeholder='solar-fleet-bootstrap-2026' required>";
+            html += "<input type='password' name='master_phrase' value='" + String(config.master_phrase) + "' placeholder='solar-fleet-bootstrap-2026'>";
             html += F("<label>Cloudflare Worker URL</label>");
             html += "<input type='text' name='worker_url' value='" + String(config.worker_url) + "' required>";
             html += F("</div>");

@@ -12,7 +12,7 @@
 #include "monitor_manager.h"
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.1.2-canary"
+#define FIRMWARE_VERSION "1.1.3-canary"
 #endif
 
 #ifndef TARGET_BOARD
@@ -223,7 +223,7 @@ void checkSerialConfiguration() {
             PortalManager::runPortal(config, configMgr, adc, ina, 120);
         } else if (line.equalsIgnoreCase("OTA")) {
             Serial.println(F("[OTA] Manual OTA update check requested via serial..."));
-            OtaManager::checkForUpdate(config.worker_url, config.station_id, FIRMWARE_VERSION);
+            OtaManager::checkForUpdate(config, configMgr, FIRMWARE_VERSION);
         } else if (line.equalsIgnoreCase("STATUS")) {
             Serial.printf("[Status] Station: %s, PowerMode: %d, Canary: %d, SSID: %s, HasToken: %d\n",
                           config.station_id, config.power_mode, config.is_canary, config.wifi_ssid, configMgr.hasDeviceToken());
@@ -438,7 +438,7 @@ void runCycle() {
 
             if (doOta) {
                 Serial.println(F("[OTA] Checking for firmware update..."));
-                OtaManager::checkForUpdate(config.worker_url, config.station_id, FIRMWARE_VERSION);
+                OtaManager::checkForUpdate(config, configMgr, FIRMWARE_VERSION);
             }
         } else {
             Serial.println(F("[Auth] Station not registered yet, skipping telemetry upload"));

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2026-11-20
+
+### Added & Changed
+- **Dynamic Station Configuration & Remote Mode Switching**:
+  - Operating mode (`power_mode`: 0 = Low Power, 1 = Active, 2 = Verbose, 3 = Monitor) and LiPo telemetry toggle (`enable_lipo`) stored persistently in Cloudflare D1 (`stations` table).
+  - Deployed nodes query `/api/ota` on their scheduled cadence (daily in Mode 0; hourly in Modes 1–3) and automatically adopt server-assigned operating modes and telemetry settings, updating NVS without requiring a firmware re-flash.
+- **Station Settings & Data Management UI Modal**:
+  - Accessible via "⚙️ Settings" button in the web interface.
+  - Interactive editing of station location, operating mode (0..3), Canary release channel toggle, and LiPo telemetry toggle.
+  - **Prune Telemetry Data**: Purges historical telemetry measurements older than 2, 7, 14, or 30 days for selected stations using D1 indexed timestamp filters.
+  - **Danger Zone / Delete Station**: Securely deletes stations and all associated telemetry records (`DELETE /api/station`).
+- **Dynamic LiPo UI Adaptation**:
+  - When LiPo telemetry is deactivated (`enable_lipo === 0` or battery voltage 0/null), the LiPo Battery KPI card, Battery Autonomy card, and Diurnal Overlay LiPo toggle button are automatically hidden from the web interface.
+- **Hardware & Soft-AP Setup Presets**:
+  - ESP32-S3 I2C default pin presets configured to SDA: GPIO8 and SCL: GPIO9 in `app_config.h`.
+  - LiPo battery voltage collection disabled by default (`DEFAULT_ENABLE_LIPO = false`).
+  - Soft-AP configuration portal pre-fills existing NVS settings and removes the `required` constraint on `MASTER_PHRASE` when reconfiguring provisioned devices.
+- **Releases**:
+  - **Firmware v1.1.3-canary** compiled and merged for ESP32 DevKit, ESP32-S3, and ESP32-C5/C6.
+  - **Website v1.1.3** deployed to Cloudflare Workers SSR (`solar.kreier.workers.dev`) and GitHub Pages mirror.
+
 ## [1.1.2] - 2026-11-20
 
 ### Fixed & Added

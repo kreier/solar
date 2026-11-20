@@ -132,7 +132,7 @@ voltage[3] = int((voltage[3]) * 1.65 + 307);
 float lipo_v = voltage[3] / 1000.0f;
 ```
 
-### Four Station Operational Modes (v1.1.2)
+### Four Station Operational Modes (v1.1.3)
 1. **Low Power (`mode 0`)**:
    - Deep Sleep (`esp_deep_sleep_start()`), consuming ~10–15 µA.
    - Wakes every 10 minutes to sample ADC and INA3221 in ~15 ms; writes sample directly into RTC Slow Memory (`RTC_DATA_ATTR`). Classic ESP32 can leverage the ULP coprocessor state machine.

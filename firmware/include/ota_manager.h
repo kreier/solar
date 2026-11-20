@@ -6,10 +6,11 @@
 #include <HTTPUpdate.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
+#include "app_config.h"
 
 class OtaManager {
 public:
-    static bool checkForUpdate(const String &workerUrl, const String &stationId,
+    static bool checkForUpdate(SolarConfig &config, AppConfigManager &configMgr,
                               const String &currentVersion) {
         if (WiFi.status() != WL_CONNECTED) {
             Serial.println(F("[OTA] Cannot check: WiFi not connected"));
@@ -24,9 +25,9 @@ public:
         String chip = "esp32";
 #endif
 
-        String checkEndpoint = workerUrl;
+        String checkEndpoint = config.worker_url;
         if (checkEndpoint.endsWith("/")) checkEndpoint.remove(checkEndpoint.length() - 1);
-        checkEndpoint += "/api/ota?station_id=" + stationId + "&version=" + currentVersion + "&chip=" + chip;
+        checkEndpoint += "/api/ota?station_id=" + String(config.station_id) + "&version=" + currentVersion + "&chip=" + chip;
 
         Serial.printf("[OTA] Checking update at: %s\n", checkEndpoint.c_str());
 
@@ -53,6 +54,28 @@ public:
                 return false;
             }
 
+            // Sync dynamic configuration from server
+            bool configChanged = false;
+            if (doc["power_mode"].is<uint8_t>()) {
+                uint8_t serverMode = doc["power_mode"].as<uint8_t>();
+                if (serverMode != config.power_mode) {
+                    Serial.printf("[OTA] Server updated power_mode: %u -> %u\n", config.power_mode, serverMode);
+                    config.power_mode = serverMode;
+                    configChanged = true;
+                }
+            }
+            if (doc["enable_lipo"].is<int>()) {
+                bool serverLipo = (doc["enable_lipo"].as<int>() == 1);
+                if (serverLipo != config.enable_lipo) {
+                    Serial.printf("[OTA] Server updated enable_lipo: %d -> %d\n", config.enable_lipo, serverLipo);
+                    config.enable_lipo = serverLipo;
+                    configChanged = true;
+                }
+            }
+            if (configChanged) {
+                configMgr.saveConfig(config);
+            }
+
             bool updateAvailable = doc["update_available"] | false;
             const char *targetVersion = doc["target_version"] | "";
             const char *binUrl = doc["url"] | "";
@@ -76,6 +99,17 @@ public:
         }
 
         return false;
+    }
+
+    static bool checkForUpdate(const String &workerUrl, const String &stationId,
+                              const String &currentVersion) {
+        SolarConfig dummy;
+        AppConfigManager dummyMgr;
+        strlcpy(dummy.worker_url, workerUrl.c_str(), sizeof(dummy.worker_url));
+        strlcpy(dummy.station_id, stationId.c_str(), sizeof(dummy.station_id));
+        dummy.power_mode = 0;
+        dummy.enable_lipo = false;
+        return checkForUpdate(dummy, dummyMgr, currentVersion);
     }
 
     static bool performUpdate(const String &binaryUrl) {

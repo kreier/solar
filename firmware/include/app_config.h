@@ -14,8 +14,8 @@
 #define DEFAULT_PIN_TEMP    1   // ADC1 CH0 (GPIO1)
 #define DEFAULT_PIN_SOLAR   2   // ADC1 CH1 (GPIO2)
 #define DEFAULT_PIN_LIPO    3   // ADC1 CH2 (GPIO3)
-#define DEFAULT_PIN_SDA     4   // I2C SDA (GPIO4)
-#define DEFAULT_PIN_SCL     5   // I2C SCL (GPIO5)
+#define DEFAULT_PIN_SDA     8   // I2C SDA (GPIO8)
+#define DEFAULT_PIN_SCL     9   // I2C SCL (GPIO9)
 #define DEFAULT_TEMP_SOURCE 1   // Default to on-chip internal sensor on ESP32-S3
 #elif defined(CONFIG_IDF_TARGET_ESP32C5) || defined(CONFIG_IDF_TARGET_ESP32C6) || defined(ARDUINO_ESP32C5_DEV) || defined(ARDUINO_ESP32C6_DEV)
 #define DEFAULT_PIN_TEMP    1   // ADC1 CH1 (GPIO1)
@@ -144,7 +144,7 @@ public:
 
         config.temp_source  = prefs.getUChar("tmp_src", DEFAULT_TEMP_SOURCE);
         config.enable_solar = prefs.getBool("en_sol", true);
-        config.enable_lipo  = prefs.getBool("en_lip", true);
+        config.enable_lipo  = prefs.getBool("en_lip", false);
 
         config.cal_temp_factor  = prefs.getFloat("c_tmp_f", DEFAULT_CAL_TEMP_FACTOR);
         config.cal_solar_factor = prefs.getFloat("c_sol_f", DEFAULT_CAL_SOLAR_FACTOR);
@@ -187,7 +187,7 @@ public:
 
         config.temp_source  = DEFAULT_TEMP_SOURCE;
         config.enable_solar = true;
-        config.enable_lipo  = true;
+        config.enable_lipo  = false;
 
         config.cal_temp_factor  = DEFAULT_CAL_TEMP_FACTOR;
         config.cal_solar_factor = DEFAULT_CAL_SOLAR_FACTOR;

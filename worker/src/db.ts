@@ -233,4 +233,59 @@ export class Database {
 
     return result.results || [];
   }
+
+  async updateStationSettings(
+    stationId: string,
+    settings: {
+      power_mode?: number;
+      enable_lipo?: number;
+      location?: string;
+      is_canary?: number;
+      target_version?: string | null;
+    }
+  ): Promise<void> {
+    await this.db
+      .prepare(
+        `UPDATE stations SET
+           power_mode = CASE WHEN ?2 IS NOT NULL THEN ?2 ELSE power_mode END,
+           enable_lipo = CASE WHEN ?3 IS NOT NULL THEN ?3 ELSE enable_lipo END,
+           location = CASE WHEN ?4 IS NOT NULL THEN ?4 ELSE location END,
+           is_canary = CASE WHEN ?5 IS NOT NULL THEN ?5 ELSE is_canary END,
+           target_version = CASE WHEN ?6 IS NOT NULL THEN ?6 ELSE target_version END
+         WHERE station_id = ?1`
+      )
+      .bind(
+        stationId,
+        settings.power_mode !== undefined ? settings.power_mode : null,
+        settings.enable_lipo !== undefined ? settings.enable_lipo : null,
+        settings.location !== undefined ? settings.location : null,
+        settings.is_canary !== undefined ? settings.is_canary : null,
+        settings.target_version !== undefined ? settings.target_version : null
+      )
+      .run();
+  }
+
+  async deleteStation(stationId: string): Promise<{ deletedMeasurements: number; deletedStation: boolean }> {
+    const mRes = await this.db
+      .prepare(`DELETE FROM measurements WHERE station_id = ?1`)
+      .bind(stationId)
+      .run();
+    const sRes = await this.db
+      .prepare(`DELETE FROM stations WHERE station_id = ?1`)
+      .bind(stationId)
+      .run();
+    return {
+      deletedMeasurements: mRes.meta?.changes ?? 0,
+      deletedStation: (sRes.meta?.changes ?? 0) > 0
+    };
+  }
+
+  async pruneMeasurements(stationId: string, olderThanDays: number): Promise<number> {
+    const cutoffDate = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
+    const res = await this.db
+      .prepare(`DELETE FROM measurements WHERE station_id = ?1 AND timestamp < ?2`)
+      .bind(stationId, cutoffDate)
+      .run();
+    return res.meta?.changes ?? 0;
+  }
 }
