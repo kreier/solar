@@ -555,7 +555,13 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="chart-header">
         <div>
           <div class="chart-title">Node Execution Latency &amp; Cycle Benchmarks</div>
-          <div class="subtitle">Stage durations: Sensor measurement, Wi-Fi association, DHCP IP, and TLS telemetry upload</div>
+          <div class="subtitle" id="timing-subtitle">Stage durations: Sensor measurement, Wi-Fi association, DHCP IP, and TLS telemetry upload</div>
+        </div>
+        <div class="btn-group" id="benchmark-range-toggle">
+          <button class="active" data-range="recent" data-days="0">Recent (30)</button>
+          <button data-range="day" data-days="1">1 Day</button>
+          <button data-range="week" data-days="7">1 Week</button>
+          <button data-range="month" data-days="30">1 Month</button>
         </div>
       </div>
       <div class="chart-container">
@@ -751,6 +757,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
     let cachedHistory = [];
     let activeMetric = "solar";
     let batteryRangeDays = 1;
+    let benchmarkRange = "recent";
 
     let overlayChart = null;
     let historyChart = null;
@@ -793,6 +800,16 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           btn.classList.add("active");
           batteryRangeDays = parseInt(btn.dataset.days, 10);
           await loadBatteryHistory(currentStationId, batteryRangeDays);
+        });
+      });
+
+      document.querySelectorAll("#benchmark-range-toggle button").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          document.querySelectorAll("#benchmark-range-toggle button").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          benchmarkRange = btn.dataset.range;
+          const days = parseInt(btn.dataset.days, 10);
+          await loadBenchmarkHistory(currentStationId, benchmarkRange, days);
         });
       });
 
@@ -913,7 +930,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         updateSummaryCards(data.station, cachedHistory[cachedHistory.length - 1]);
         renderOverlayChart(cachedHistory, activeMetric);
         renderHistoryChart(cachedHistory);
-        renderTimingChart(cachedHistory);
+        renderTimingChart(cachedHistory, benchmarkRange);
         renderBatteryAnalytics(cachedHistory);
 
         const nodeFw = (data.station && data.station.firmware_version) ? ("Node FW v" + data.station.firmware_version) : "Node FW v1.0.2";
@@ -924,7 +941,15 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           " • " + cachedHistory.length + " telemetry points recorded";
       } catch (err) {
         console.warn("API request failed, generating representative dataset:", err);
-        loadMockData();
+        const mock = loadMockData(3);
+        cachedHistory = mock;
+        document.getElementById("station-subtitle").innerHTML =
+          "Station: <b>phumy2</b> • Location: <b>District 7, HCMC</b> • <span class='badge badge-amber'>Node FW v1.0.2</span> • 432 telemetry points recorded";
+        updateSummaryCards({ station_id: "phumy2", location: "District 7, HCMC", firmware_version: "1.0.2" }, mock[mock.length - 1]);
+        renderOverlayChart(mock, activeMetric);
+        renderHistoryChart(mock);
+        renderTimingChart(mock, benchmarkRange);
+        renderBatteryAnalytics(mock);
       }
     }
 
@@ -935,9 +960,38 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         if (resp.ok) {
           const data = await resp.json();
           renderBatteryAnalytics(data.measurements || []);
+          return;
         }
       } catch (e) {
+        console.warn("Failed to fetch extended battery history, falling back:", e);
+      }
+      if (days > 3) {
+        renderBatteryAnalytics(loadMockData(days));
+      } else {
         renderBatteryAnalytics(cachedHistory);
+      }
+    }
+
+    async function loadBenchmarkHistory(stationId, range, days) {
+      if (!stationId) return;
+      if (range === "recent" || (days <= 3 && cachedHistory.length >= 10)) {
+        renderTimingChart(cachedHistory, range);
+        return;
+      }
+      try {
+        const resp = await fetch(API_BASE + "/api/history?station_id=" + encodeURIComponent(stationId) + "&days=" + days);
+        if (resp.ok) {
+          const data = await resp.json();
+          renderTimingChart(data.measurements || [], range);
+          return;
+        }
+      } catch (e) {
+        console.warn("Failed to fetch extended benchmark data, falling back:", e);
+      }
+      if (days > 3) {
+        renderTimingChart(loadMockData(days), range);
+      } else {
+        renderTimingChart(cachedHistory, range);
       }
     }
 
@@ -1339,20 +1393,155 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       });
     }
 
-    function renderTimingChart(records) {
+    function aggregateTimingRecords(records, range) {
+      const timed = (records || []).filter(r => r.cycle_measure_ms != null && r.cycle_wifi_ms != null);
+      if (timed.length === 0) return { labels: [], measureMs: [], wifiMs: [], ipMs: [], uploadMs: [], timedRecords: [] };
+
+      const now = Date.now();
+
+      if (range === "recent") {
+        const slice = timed.slice(-30);
+        return {
+          labels: slice.map(r => new Date(r.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })),
+          measureMs: slice.map(r => r.cycle_measure_ms || 0),
+          wifiMs: slice.map(r => r.cycle_wifi_ms || 0),
+          ipMs: slice.map(r => r.cycle_ip_ms || 0),
+          uploadMs: slice.map(r => r.cycle_upload_ms || 0),
+          timedRecords: slice
+        };
+      }
+
+      if (range === "day") {
+        const cutoff = now - 24 * 60 * 60 * 1000;
+        const dayRecords = timed.filter(r => new Date(r.timestamp).getTime() >= cutoff);
+        const dataset = dayRecords.length > 0 ? dayRecords : timed.slice(-144);
+        return {
+          labels: dataset.map(r => new Date(r.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })),
+          measureMs: dataset.map(r => r.cycle_measure_ms || 0),
+          wifiMs: dataset.map(r => r.cycle_wifi_ms || 0),
+          ipMs: dataset.map(r => r.cycle_ip_ms || 0),
+          uploadMs: dataset.map(r => r.cycle_upload_ms || 0),
+          timedRecords: dataset
+        };
+      }
+
+      if (range === "week") {
+        const cutoff = now - 7 * 24 * 60 * 60 * 1000;
+        const weekRecords = timed.filter(r => new Date(r.timestamp).getTime() >= cutoff);
+        const dataset = weekRecords.length > 0 ? weekRecords : timed;
+
+        const buckets = {};
+        dataset.forEach(r => {
+          const d = new Date(r.timestamp);
+          d.setMinutes(0, 0, 0);
+          const key = d.toISOString();
+          if (!buckets[key]) buckets[key] = { labelDate: d, measure: [], wifi: [], ip: [], upload: [], total: [] };
+          buckets[key].measure.push(r.cycle_measure_ms || 0);
+          buckets[key].wifi.push(r.cycle_wifi_ms || 0);
+          buckets[key].ip.push(r.cycle_ip_ms || 0);
+          buckets[key].upload.push(r.cycle_upload_ms || 0);
+          buckets[key].total.push(r.cycle_total_ms || 0);
+        });
+
+        const sortedKeys = Object.keys(buckets).sort();
+        const labels = sortedKeys.map(k => {
+          const d = buckets[k].labelDate;
+          const dayName = d.toLocaleDateString([], { weekday: "short" });
+          const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          return dayName + " " + timeStr;
+        });
+
+        const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+
+        return {
+          labels,
+          measureMs: sortedKeys.map(k => avg(buckets[k].measure)),
+          wifiMs: sortedKeys.map(k => avg(buckets[k].wifi)),
+          ipMs: sortedKeys.map(k => avg(buckets[k].ip)),
+          uploadMs: sortedKeys.map(k => avg(buckets[k].upload)),
+          timedRecords: dataset
+        };
+      }
+
+      if (range === "month") {
+        const cutoff = now - 30 * 24 * 60 * 60 * 1000;
+        const monthRecords = timed.filter(r => new Date(r.timestamp).getTime() >= cutoff);
+        const dataset = monthRecords.length > 0 ? monthRecords : timed;
+
+        const buckets = {};
+        dataset.forEach(r => {
+          const d = new Date(r.timestamp);
+          d.setHours(0, 0, 0, 0);
+          const key = d.toISOString().split("T")[0];
+          if (!buckets[key]) buckets[key] = { labelDate: d, measure: [], wifi: [], ip: [], upload: [], total: [] };
+          buckets[key].measure.push(r.cycle_measure_ms || 0);
+          buckets[key].wifi.push(r.cycle_wifi_ms || 0);
+          buckets[key].ip.push(r.cycle_ip_ms || 0);
+          buckets[key].upload.push(r.cycle_upload_ms || 0);
+          buckets[key].total.push(r.cycle_total_ms || 0);
+        });
+
+        const sortedKeys = Object.keys(buckets).sort();
+        const labels = sortedKeys.map(k => {
+          const d = buckets[k].labelDate;
+          return d.toLocaleDateString([], { month: "short", day: "numeric" });
+        });
+
+        const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+
+        return {
+          labels,
+          measureMs: sortedKeys.map(k => avg(buckets[k].measure)),
+          wifiMs: sortedKeys.map(k => avg(buckets[k].wifi)),
+          ipMs: sortedKeys.map(k => avg(buckets[k].ip)),
+          uploadMs: sortedKeys.map(k => avg(buckets[k].upload)),
+          timedRecords: dataset
+        };
+      }
+
+      return { labels: [], measureMs: [], wifiMs: [], ipMs: [], uploadMs: [], timedRecords: [] };
+    }
+
+    function renderTimingChart(records, range = "recent") {
       const ctx = document.getElementById("timingChart").getContext("2d");
 
-      const timedRecords = records.filter(r => r.cycle_measure_ms != null).slice(-36);
+      const subtitle = document.getElementById("timing-subtitle");
+      if (subtitle) {
+        if (range === "recent") {
+          subtitle.textContent = "Last 30 recorded execution cycles (individual breakdown)";
+        } else if (range === "day") {
+          subtitle.textContent = "Past 24-hour cycle execution history (active wake duration)";
+        } else if (range === "week") {
+          subtitle.textContent = "7-day execution trends (hourly averaged stage durations)";
+        } else if (range === "month") {
+          subtitle.textContent = "30-day historical latency (daily averaged stage durations)";
+        }
+      }
 
-      const labels = timedRecords.map(r => {
-        const d = new Date(r.timestamp);
-        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      });
+      const aggregated = aggregateTimingRecords(records, range);
+      const labels = aggregated.labels;
+      const measureMs = aggregated.measureMs;
+      const wifiMs    = aggregated.wifiMs;
+      const ipMs      = aggregated.ipMs;
+      const uploadMs  = aggregated.uploadMs;
 
-      const measureMs = timedRecords.map(r => r.cycle_measure_ms || 0);
-      const wifiMs    = timedRecords.map(r => r.cycle_wifi_ms || 0);
-      const ipMs      = timedRecords.map(r => r.cycle_ip_ms || 0);
-      const uploadMs  = timedRecords.map(r => r.cycle_upload_ms || 0);
+      if (aggregated.timedRecords && aggregated.timedRecords.length > 0) {
+        const trs = aggregated.timedRecords;
+        const avg = (fn) => Math.round(trs.reduce((acc, r) => acc + (fn(r) || 0), 0) / trs.length);
+        const avgMeasure = avg(r => r.cycle_measure_ms);
+        const avgWifi    = avg(r => r.cycle_wifi_ms);
+        const avgIp      = avg(r => r.cycle_ip_ms);
+        const avgUpload  = avg(r => r.cycle_upload_ms);
+        const avgTotal   = avg(r => r.cycle_total_ms || ((r.cycle_measure_ms || 0) + (r.cycle_wifi_ms || 0) + (r.cycle_ip_ms || 0) + (r.cycle_upload_ms || 0)));
+        const dutyCycle  = ((600000 - avgTotal) / 600000 * 100).toFixed(2);
+
+        document.getElementById("bench-measure").textContent = avgMeasure + " ms";
+        document.getElementById("bench-wifi").textContent    = avgWifi + " ms";
+        document.getElementById("bench-ip").textContent      = avgIp + " ms";
+        document.getElementById("bench-upload").textContent  = avgUpload + " ms";
+        document.getElementById("bench-total").textContent   = avgTotal + " ms";
+        document.getElementById("bench-sleep").textContent   = dutyCycle + " %";
+      }
 
       if (timingChart) timingChart.destroy();
 
@@ -1371,7 +1560,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            x: { stacked: true, grid: { color: "#21262d" }, ticks: { maxTicksLimit: 10, color: "#8b949e" } },
+            x: { stacked: true, grid: { color: "#21262d" }, ticks: { maxTicksLimit: range === "month" ? 15 : 12, color: "#8b949e" } },
             y: { stacked: true, grid: { color: "#21262d" }, ticks: { color: "#8b949e" }, title: { display: true, text: "Active Time (ms)", color: "#8b949e" } }
           },
           plugins: {
@@ -1381,10 +1570,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       });
     }
 
-    function loadMockData() {
+    function loadMockData(days = 3) {
       const records = [];
       const now = Date.now();
-      const points = 3 * 24 * 6;
+      const points = days * 24 * 6;
 
       for (let i = points; i >= 0; i--) {
         const time = new Date(now - i * 10 * 60 * 1000);
@@ -1424,6 +1613,9 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           })
         });
       }
+
+      return records;
+    }
 
       cachedHistory = records;
       document.getElementById("station-subtitle").innerHTML =

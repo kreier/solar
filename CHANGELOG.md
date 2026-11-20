@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dedicated interactive card with timeframes: 1 Day, 7 Days, 30 Days, and 3 Months (90 Days).
   - Calculated 24-hour runtime estimate (detects diurnal solar recharge / self-sustaining status vs discharge rate to 3.3V cutoff).
   - Calculated 7-day trend estimate and 30-day long-term autonomy estimate.
+- **Multi-Timeframe Execution Cycle Benchmark Selector**:
+  - Added timeframe selector to Node Execution Latency & Cycle Benchmarks: **Recent (30 Cycles)**, **1 Day** (24h active wake history), **1 Week** (hourly averaged stage durations), and **1 Month** (daily averaged latency trends).
+  - Automatically calculates and updates mean sensor measurement, Wi-Fi connect, IP DHCP, upload time, and duty cycle efficiency for the chosen timeframe.
 - **Canary Release Channel**:
   - Canary versioning (`v1.1.0-canary`) with per-station toggle in Soft-AP setup portal, NVS, and Cloudflare D1 edge database.
   - Stations on the canary channel automatically receive canary OTA updates; stable stations remain on production releases.
