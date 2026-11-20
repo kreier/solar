@@ -426,37 +426,29 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="card">
         <div class="card-label">
           <span>Solar Panel</span>
-          <span class="badge badge-amber" id="solar-status">Active</span>
         </div>
         <div class="card-value" id="solar-val">-- <span class="card-unit">V</span></div>
-        <div class="card-sub" id="solar-mv">-- mV (Divider 1k:1k)</div>
       </div>
 
       <div class="card">
         <div class="card-label">
           <span>LiPo Battery</span>
-          <span class="badge badge-green" id="battery-status">Nominal</span>
         </div>
         <div class="card-value" id="battery-val">-- <span class="card-unit">V</span></div>
-        <div class="card-sub" id="battery-mv">-- mV (~--% SoC)</div>
       </div>
 
       <div class="card">
         <div class="card-label">
           <span>Temperature</span>
-          <span class="badge badge-blue" id="temp-badge">Enclosure</span>
         </div>
         <div class="card-value" id="temp-val">-- <span class="card-unit">°C</span></div>
-        <div class="card-sub" id="temp-f">-- °F (Sun Range 10-75°C)</div>
       </div>
 
       <div class="card">
         <div class="card-label">
           <span>Active Cycle Time</span>
-          <span class="badge badge-blue">Telemetry</span>
         </div>
         <div class="card-value" id="cycle-total">-- <span class="card-unit">ms</span></div>
-        <div class="card-sub" id="cycle-http">HTTP -- &bull; Benchmark</div>
       </div>
     </div>
 
@@ -905,8 +897,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           stations.forEach((st) => {
             const opt = document.createElement("option");
             opt.value = st.station_id;
-            const fwLabel = st.firmware_version ? \` [FW v\${st.firmware_version}]\` : "";
-            opt.textContent = \`\${st.station_id} (\${st.location || "Solar Site"})\${fwLabel}\`;
+            opt.textContent = st.station_id;
             select.appendChild(opt);
           });
 
@@ -948,11 +939,11 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const data = await resp.json();
 
         cachedHistory = data.measurements || [];
-        updateSummaryCards(data.station, cachedHistory[cachedHistory.length - 1]);
-        renderOverlayChart(cachedHistory, activeMetric);
-        renderHistoryChart(cachedHistory);
-        renderTimingChart(cachedHistory, benchmarkRange);
-        renderBatteryAnalytics(cachedHistory);
+        try { updateSummaryCards(data.station, cachedHistory[cachedHistory.length - 1]); } catch(e) { console.error("updateSummaryCards error:", e); }
+        try { renderOverlayChart(cachedHistory, activeMetric); } catch(e) { console.error("renderOverlayChart error:", e); }
+        try { renderHistoryChart(cachedHistory); } catch(e) { console.error("renderHistoryChart error:", e); }
+        try { renderTimingChart(cachedHistory, benchmarkRange); } catch(e) { console.error("renderTimingChart error:", e); }
+        try { renderBatteryAnalytics(cachedHistory); } catch(e) { console.error("renderBatteryAnalytics error:", e); }
 
         const nodeFw = (data.station && data.station.firmware_version) ? ("Node FW v" + data.station.firmware_version) : "Node FW v1.0.2";
         const canaryBadge = (data.station && data.station.is_canary) ? " <span class='badge badge-blue'>Canary</span>" : "";
@@ -1015,45 +1006,23 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const solarV = (solarMv / 1000).toFixed(2);
       const lipoV  = (lipoMv / 1000).toFixed(2);
 
-      document.getElementById("solar-val").innerHTML = solarV + ' <span class="card-unit">V</span>';
-      document.getElementById("solar-mv").textContent = solarMv + " mV (Divider 1k:1k)";
-      document.getElementById("solar-status").textContent = solarMv > 1000 ? "Charging" : (solarMv > 300 ? "Overcast" : "Night");
+      const solarEl = document.getElementById("solar-val");
+      if (solarEl) solarEl.innerHTML = solarV + ' <span class="card-unit">V</span>';
 
-      document.getElementById("battery-val").innerHTML = lipoV + ' <span class="card-unit">V</span>';
-      const soc = Math.min(100, Math.max(0, Math.round(((lipoMv - 3300) / (4200 - 3300)) * 100)));
-      document.getElementById("battery-mv").textContent = lipoMv + " mV (~" + soc + "% SoC)";
+      const batteryEl = document.getElementById("battery-val");
+      if (batteryEl) batteryEl.innerHTML = lipoV + ' <span class="card-unit">V</span>';
 
-      document.getElementById("temp-val").innerHTML = tempC.toFixed(1) + ' <span class="card-unit">°C</span>';
-      document.getElementById("temp-f").textContent = ((tempC * 9/5) + 32).toFixed(1) + " °F (Sun Range 10-75°C)";
+      const tempEl = document.getElementById("temp-val");
+      if (tempEl) tempEl.innerHTML = tempC.toFixed(1) + ' <span class="card-unit">°C</span>';
 
-      // Temperature visual indicator based on sun enclosure heating
-      const tempBadge = document.getElementById("temp-badge");
-      if (tempBadge) {
-        if (tempC >= 50) {
-          tempBadge.className = "badge badge-amber";
-          tempBadge.textContent = "High (Sun Enclosure)";
-        } else if (tempC >= 40) {
-          tempBadge.className = "badge badge-amber";
-          tempBadge.textContent = "Warm (Sun)";
+      const cycleEl = document.getElementById("cycle-total");
+      if (cycleEl) {
+        if (latest && (latest.cycle_total_ms || latest.cycle_wifi_ms || latest.cycle_measure_ms)) {
+          const total = latest.cycle_total_ms || ((latest.cycle_measure_ms || 0) + (latest.cycle_wifi_ms || 0) + (latest.cycle_ip_ms || 0) + (latest.cycle_upload_ms || 0));
+          cycleEl.innerHTML = total + ' <span class="card-unit">ms</span>';
         } else {
-          tempBadge.className = "badge badge-blue";
-          tempBadge.textContent = "Nominal";
+          cycleEl.innerHTML = '-- <span class="card-unit">ms</span>';
         }
-      }
-
-      if (latest && (latest.cycle_total_ms || latest.cycle_wifi_ms || latest.cycle_measure_ms)) {
-        const total = latest.cycle_total_ms || ((latest.cycle_measure_ms || 0) + (latest.cycle_wifi_ms || 0) + (latest.cycle_ip_ms || 0) + (latest.cycle_upload_ms || 0));
-        document.getElementById("cycle-total").innerHTML = total + ' <span class="card-unit">ms</span>';
-        document.getElementById("cycle-http").textContent = "HTTP " + (latest.cycle_http_code || 200);
-
-        if (latest.cycle_measure_ms != null) document.getElementById("bench-measure").textContent = latest.cycle_measure_ms + " ms";
-        if (latest.cycle_wifi_ms != null) document.getElementById("bench-wifi").textContent = latest.cycle_wifi_ms + " ms";
-        if (latest.cycle_ip_ms != null) document.getElementById("bench-ip").textContent = latest.cycle_ip_ms + " ms";
-        if (latest.cycle_upload_ms != null) document.getElementById("bench-upload").textContent = latest.cycle_upload_ms + " ms";
-        if (total > 0) document.getElementById("bench-total").textContent = total + " ms";
-      } else {
-        document.getElementById("cycle-total").innerHTML = '-- <span class="card-unit">ms</span>';
-        document.getElementById("cycle-http").textContent = "Standby";
       }
 
       // Check for INA3221 Telemetry in raw payload
@@ -1068,13 +1037,17 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
             if (inaCard) {
               inaCard.style.display = "block";
               if (ina.ch1_solar) {
-                document.getElementById("ina-solar-pwr").textContent = (ina.ch1_solar.power_mw || 0).toFixed(1) + " mW";
-                document.getElementById("ina-solar-details").textContent =
+                const elPwr = document.getElementById("ina-solar-pwr");
+                const elDet = document.getElementById("ina-solar-details");
+                if (elPwr) elPwr.textContent = (ina.ch1_solar.power_mw || 0).toFixed(1) + " mW";
+                if (elDet) elDet.textContent =
                   \`\${(ina.ch1_solar.voltage_v || 0).toFixed(2)} V • \${(ina.ch1_solar.current_ma || 0).toFixed(1)} mA\`;
               }
               if (ina.ch3_load) {
-                document.getElementById("ina-load-pwr").textContent = (ina.ch3_load.power_mw || 0).toFixed(1) + " mW";
-                document.getElementById("ina-load-details").textContent =
+                const elPwr = document.getElementById("ina-load-pwr");
+                const elDet = document.getElementById("ina-load-details");
+                if (elPwr) elPwr.textContent = (ina.ch3_load.power_mw || 0).toFixed(1) + " mW";
+                if (elDet) elDet.textContent =
                   \`\${(ina.ch3_load.voltage_v || 0).toFixed(2)} V • \${(ina.ch3_load.current_ma || 0).toFixed(1)} mA • Res: \${(ina.ch3_load.resistance_ohm || 0).toFixed(1)} Ω\`;
               }
             }
@@ -1108,18 +1081,23 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const first24 = r24h[0];
         const firstMv = first24.lipo_mv || Math.round((first24.lipo_v || 3.8) * 1000);
         const deltaMv = latestMv - firstMv;
-        document.getElementById("est-drop-24h").textContent = \`ΔV: \${deltaMv >= 0 ? "+" : ""}\${deltaMv} mV / 24h\`;
+        const elDrop24 = document.getElementById("est-drop-24h");
+        const elRun24  = document.getElementById("est-runtime-24h");
+        if (elDrop24) elDrop24.textContent = \`ΔV: \${deltaMv >= 0 ? "+" : ""}\${deltaMv} mV / 24h\`;
 
-        if (deltaMv >= 0) {
-          document.getElementById("est-runtime-24h").innerHTML = "<span style='color:#10b981;'>Self-Sustaining</span>";
-        } else {
-          const dropPerDay = Math.abs(deltaMv);
-          const daysLeft = (headroomMv / dropPerDay).toFixed(1);
-          const hoursLeft = Math.round((headroomMv / dropPerDay) * 24);
-          document.getElementById("est-runtime-24h").textContent = \`\${daysLeft} Days (\${hoursLeft}h)\`;
+        if (elRun24) {
+          if (deltaMv >= 0) {
+            elRun24.innerHTML = "<span style='color:#10b981;'>Self-Sustaining</span>";
+          } else {
+            const dropPerDay = Math.abs(deltaMv);
+            const daysLeft = (headroomMv / dropPerDay).toFixed(1);
+            const hoursLeft = Math.round((headroomMv / dropPerDay) * 24);
+            elRun24.textContent = \`\${daysLeft} Days (\${hoursLeft}h)\`;
+          }
         }
       } else {
-        document.getElementById("est-runtime-24h").textContent = "> 14 Days";
+        const elRun24 = document.getElementById("est-runtime-24h");
+        if (elRun24) elRun24.textContent = "> 14 Days";
       }
 
       // 2. 7-Day Trend calculation
@@ -1130,16 +1108,19 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const daySpan = Math.max(1, (new Date(latest.timestamp) - new Date(first7.timestamp)) / (24 * 3600 * 1000));
         const avgDailyDrop = (firstMv - latestMv) / daySpan;
 
+        const elRun7 = document.getElementById("est-runtime-7d");
+        const elDrop7 = document.getElementById("est-drop-7d");
         if (avgDailyDrop <= 0) {
-          document.getElementById("est-runtime-7d").innerHTML = "<span style='color:#10b981;'>Solar Float / Stable</span>";
-          document.getElementById("est-drop-7d").textContent = \`Net Gain: +\${Math.abs(avgDailyDrop).toFixed(1)} mV/day\`;
+          if (elRun7) elRun7.innerHTML = "<span style='color:#10b981;'>Solar Float / Stable</span>";
+          if (elDrop7) elDrop7.textContent = \`Net Gain: +\${Math.abs(avgDailyDrop).toFixed(1)} mV/day\`;
         } else {
           const daysLeft = (headroomMv / avgDailyDrop).toFixed(1);
-          document.getElementById("est-runtime-7d").textContent = \`\${daysLeft} Days Autonomy\`;
-          document.getElementById("est-drop-7d").textContent = \`Avg drop: \${avgDailyDrop.toFixed(1)} mV/day\`;
+          if (elRun7) elRun7.textContent = \`\${daysLeft} Days Autonomy\`;
+          if (elDrop7) elDrop7.textContent = \`Avg drop: \${avgDailyDrop.toFixed(1)} mV/day\`;
         }
       } else {
-        document.getElementById("est-runtime-7d").textContent = "~ 21 Days Autonomy";
+        const elRun7 = document.getElementById("est-runtime-7d");
+        if (elRun7) elRun7.textContent = "~ 21 Days Autonomy";
       }
 
       // 3. 30-Day Autonomy calculation
@@ -1150,20 +1131,25 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const daySpan = Math.max(1, (new Date(latest.timestamp) - new Date(first30.timestamp)) / (24 * 3600 * 1000));
         const avgDailyDrop = (firstMv - latestMv) / daySpan;
 
+        const elRun30 = document.getElementById("est-runtime-30d");
+        const elDrop30 = document.getElementById("est-drop-30d");
         if (avgDailyDrop <= 0) {
-          document.getElementById("est-runtime-30d").innerHTML = "<span style='color:#10b981;'>Infinite Autonomy</span>";
-          document.getElementById("est-drop-30d").textContent = "Daily Solar Replenishment";
+          if (elRun30) elRun30.innerHTML = "<span style='color:#10b981;'>Infinite Autonomy</span>";
+          if (elDrop30) elDrop30.textContent = "Daily Solar Replenishment";
         } else {
           const daysLeft = (headroomMv / avgDailyDrop).toFixed(1);
-          document.getElementById("est-runtime-30d").textContent = \`\${daysLeft} Days\`;
-          document.getElementById("est-drop-30d").textContent = \`30d Trend: \${avgDailyDrop.toFixed(1)} mV/day\`;
+          if (elRun30) elRun30.textContent = \`\${daysLeft} Days\`;
+          if (elDrop30) elDrop30.textContent = \`30d Trend: \${avgDailyDrop.toFixed(1)} mV/day\`;
         }
       } else {
-        document.getElementById("est-runtime-30d").textContent = "Infinite (Solar Float)";
+        const elRun30 = document.getElementById("est-runtime-30d");
+        if (elRun30) elRun30.textContent = "Infinite (Solar Float)";
       }
 
       // Render Battery Timeline Chart
-      const ctx = document.getElementById("batteryChart").getContext("2d");
+      const batteryCanvas = document.getElementById("batteryChart");
+      if (!batteryCanvas) return;
+      const ctx = batteryCanvas.getContext("2d");
       const labels = records.map(r => {
         const d = new Date(r.timestamp);
         return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -1585,14 +1571,17 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const avgIp      = avg(r => r.cycle_ip_ms);
         const avgUpload  = avg(r => r.cycle_upload_ms);
         const avgTotal   = avg(r => r.cycle_total_ms || ((r.cycle_measure_ms || 0) + (r.cycle_wifi_ms || 0) + (r.cycle_ip_ms || 0) + (r.cycle_upload_ms || 0)));
-        const dutyCycle  = ((600000 - avgTotal) / 600000 * 100).toFixed(2);
 
-        document.getElementById("bench-measure").textContent = avgMeasure + " ms";
-        document.getElementById("bench-wifi").textContent    = avgWifi + " ms";
-        document.getElementById("bench-ip").textContent      = avgIp + " ms";
-        document.getElementById("bench-upload").textContent  = avgUpload + " ms";
-        document.getElementById("bench-total").textContent   = avgTotal + " ms";
-        document.getElementById("bench-sleep").textContent   = dutyCycle + " %";
+        const elMeasure = document.getElementById("bench-measure");
+        if (elMeasure) elMeasure.textContent = avgMeasure + " ms";
+        const elWifi = document.getElementById("bench-wifi");
+        if (elWifi) elWifi.textContent = avgWifi + " ms";
+        const elIp = document.getElementById("bench-ip");
+        if (elIp) elIp.textContent = avgIp + " ms";
+        const elUpload = document.getElementById("bench-upload");
+        if (elUpload) elUpload.textContent = avgUpload + " ms";
+        const elTotal = document.getElementById("bench-total");
+        if (elTotal) elTotal.textContent = avgTotal + " ms";
       }
 
       if (timingChart) timingChart.destroy();
