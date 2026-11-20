@@ -7,7 +7,19 @@
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "firmware/firmware.bin", "offset": 65536 }
+        { "path": "firmware/firmware-esp32-v1.0.2.bin", "offset": 65536 }
+      ]
+    },
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "firmware/firmware-esp32s3-v1.0.2.bin", "offset": 65536 }
+      ]
+    },
+    {
+      "chipFamily": "ESP32-C6",
+      "parts": [
+        { "path": "firmware/firmware-esp32c5-v1.0.2.bin", "offset": 65536 }
       ]
     }
   ]

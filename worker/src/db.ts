@@ -11,20 +11,35 @@ export class Database {
     stationId: string,
     location: string,
     description: string,
-    deviceToken: string
+    deviceToken: string,
+    firmwareVersion?: string,
+    isCanary?: number
   ): Promise<void> {
     const now = new Date().toISOString();
     await this.db
       .prepare(
-        `INSERT INTO stations (station_id, location, description, device_token, created_at, last_seen)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+        `INSERT INTO stations (
+           station_id, location, description, device_token, firmware_version, is_canary, created_at, last_seen
+         ) VALUES (
+           ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7
+         )
          ON CONFLICT(station_id) DO UPDATE SET
            location = excluded.location,
            description = excluded.description,
            device_token = excluded.device_token,
+           firmware_version = COALESCE(excluded.firmware_version, stations.firmware_version),
+           is_canary = COALESCE(excluded.is_canary, stations.is_canary),
            last_seen = excluded.last_seen`
       )
-      .bind(stationId, location, description, deviceToken, now)
+      .bind(
+        stationId,
+        location,
+        description,
+        deviceToken,
+        firmwareVersion || null,
+        isCanary !== undefined ? isCanary : 0,
+        now
+      )
       .run();
   }
 
@@ -54,7 +69,52 @@ export class Database {
     clientIp: string | null
   ): Promise<void> {
     const now = new Date().toISOString();
+    const nowMs = Date.now();
 
+    // 1. If batch_samples are present (Minimal Energy mode hourly uploads), insert buffered samples first
+    if (payload.batch_samples && payload.batch_samples.length > 0) {
+      const count = payload.batch_samples.length;
+      for (let i = 0; i < count; i++) {
+        const sample = payload.batch_samples[i];
+        // Calculate timestamp offset: each sample was taken ~10 minutes apart
+        const sampleTimeMs = nowMs - (count - i) * 10 * 60 * 1000;
+        const sampleTime = new Date(sampleTimeMs).toISOString();
+
+        const sSolarV = sample.solar_mv / 1000.0;
+        const sLipoV = sample.lipo_mv / 1000.0;
+        const sTempMv = Math.round(sample.temp_c * 10.0);
+
+        await this.db
+          .prepare(
+            `INSERT INTO measurements (
+               station_id, timestamp, solar_mv, solar_v, lipo_mv, lipo_v,
+               temp_c, temp_mv, raw_pin32, raw_pin34, raw_pin35, boot_count,
+               cycle_boot_ms, cycle_measure_ms, cycle_wifi_ms, cycle_ip_ms,
+               cycle_upload_ms, cycle_total_ms, cycle_http_code, raw_payload
+             ) VALUES (
+               ?1, ?2, ?3, ?4, ?5, ?6,
+               ?7, ?8, NULL, NULL, NULL, ?9,
+               NULL, NULL, NULL, NULL,
+               NULL, NULL, 200, ?10
+             )`
+          )
+          .bind(
+            payload.station_id,
+            sampleTime,
+            sample.solar_mv,
+            sSolarV,
+            sample.lipo_mv,
+            sLipoV,
+            sample.temp_c,
+            sTempMv,
+            sample.boot_count ?? null,
+            JSON.stringify(sample)
+          )
+          .run();
+      }
+    }
+
+    // 2. Insert current latest cycle measurement
     const solarV = payload.solar_v ?? payload.solar_mv / 1000.0;
     const lipoV = payload.lipo_v ?? payload.lipo_mv / 1000.0;
     const tempMv = payload.temp_mv ?? Math.round(payload.temp_c * 10.0);
@@ -99,7 +159,7 @@ export class Database {
       )
       .run();
 
-    // Update station last_seen and current readings
+    // 3. Update station last_seen, current readings, and canary status
     await this.db
       .prepare(
         `UPDATE stations SET
@@ -109,8 +169,9 @@ export class Database {
            battery_mv = ?4,
            solar_mv = ?5,
            temp_c = ?6,
-           ip_address = COALESCE(?7, ip_address)
-         WHERE station_id = ?8`
+           ip_address = COALESCE(?7, ip_address),
+           is_canary = CASE WHEN ?8 IS NOT NULL THEN ?8 ELSE is_canary END
+         WHERE station_id = ?9`
       )
       .bind(
         now,
@@ -120,6 +181,7 @@ export class Database {
         payload.solar_mv,
         payload.temp_c,
         clientIp,
+        payload.is_canary ?? null,
         payload.station_id
       )
       .run();

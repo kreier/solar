@@ -2,7 +2,7 @@ import { Env, StationRecord } from "./types";
 import { Database } from "./db";
 
 function parseSemVer(v: string): [number, number, number] {
-  const clean = v.replace(/^v/i, "").trim();
+  const clean = v.replace(/^v/i, "").split("-")[0].trim();
   const parts = clean.split(".").map(p => parseInt(p, 10) || 0);
   return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
 }
@@ -34,6 +34,7 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
 
   const stationId = url.searchParams.get("station_id")?.trim();
   const currentVersion = url.searchParams.get("version")?.trim() || "0.0.0";
+  const chip = url.searchParams.get("chip")?.trim() || "esp32";
 
   if (!stationId) {
     return new Response(JSON.stringify({ error: "Missing required query parameter: station_id" }), {
@@ -45,7 +46,10 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
   const db = new Database(env);
   const station = await db.getStation(stationId);
 
-  let targetVersion = station?.target_version?.trim() || env.STABLE_VERSION || "1.0.0";
+  // Check if station accepts canary channel
+  const isCanary = (station?.is_canary === 1) || (url.searchParams.get("canary") === "1");
+  const defaultVersion = isCanary ? (env.CANARY_VERSION || "1.1.0-canary") : (env.STABLE_VERSION || "1.0.2");
+  let targetVersion = station?.target_version?.trim() || defaultVersion;
 
   // Check if station is already on or ahead of target version
   if (compareSemVer(targetVersion, currentVersion) <= 0) {
@@ -53,23 +57,27 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
       JSON.stringify({
         update_available: false,
         station_id: stationId,
+        chip,
         current_version: currentVersion,
         target_version: targetVersion,
+        is_canary: isCanary ? 1 : 0,
         message: "Firmware is already up to date"
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   }
 
-  const filename = `firmware-esp32-v${targetVersion}.bin`;
+  const filename = `firmware-${chip}-v${targetVersion}.bin`;
   const downloadUrl = `${url.origin}/api/ota/download/${filename}`;
 
   return new Response(
     JSON.stringify({
       update_available: true,
       station_id: stationId,
+      chip,
       current_version: currentVersion,
       target_version: targetVersion,
+      is_canary: isCanary ? 1 : 0,
       url: downloadUrl
     }),
     {
@@ -101,7 +109,7 @@ export async function handleFirmwareDownload(filename: string, env: Env): Promis
 
   // 2. Try GitHub Releases
   const match = filename.match(/v(\d+\.\d+\.\d+)/);
-  const tag = match ? `v${match[1]}` : `v${env.STABLE_VERSION || "1.0.0"}`;
+  const tag = match ? `v${match[1]}` : `v${env.STABLE_VERSION || "1.0.2"}`;
   const ghUrl = `https://github.com/kreier/solar/releases/download/${tag}/${filename}`;
 
   try {

@@ -4,7 +4,8 @@ Edge-native telemetry fleet monitoring for ESP32 microcontrollers measuring sola
 
 [![Build Firmware CI](https://github.com/kreier/solar/actions/workflows/build-firmware.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/build-firmware.yml)
 [![Deploy GitHub Pages](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml)
-[![Firmware](https://img.shields.io/badge/firmware-v1.0.2-blue.svg)](firmware/)
+[![Firmware](https://img.shields.io/badge/firmware-v1.0.2%20%7C%20v1.1.0--canary-blue.svg)](firmware/)
+[![Boards](https://img.shields.io/badge/boards-ESP32%20%7C%20ESP32--S3%20%7C%20ESP32--C5-orange.svg)](firmware/)
 [![ADRs](https://img.shields.io/badge/docs-ADRs%20(5)-success.svg)](docs/adr/)
 
 ---

@@ -2,7 +2,9 @@
 
 #include <Arduino.h>
 #include "soc/soc.h"
+#if CONFIG_IDF_TARGET_ESP32
 #include "soc/sens_reg.h"
+#endif
 
 // Default Pin definitions
 #define PIN_TEMP_ADC32  32  // Temperature sensor (10 mV/°C)
@@ -33,18 +35,25 @@ public:
 
     void begin() {
         analogReadResolution(12);
-        // Save ADC2 control register state if needed
+#if CONFIG_IDF_TARGET_ESP32
+        // Save ADC2 control register state if needed on classic ESP32
         _reg_b = READ_PERI_REG(SENS_SAR_READ_CTRL2_REG);
+#endif
     }
 
     AdcReadings readSensors(uint8_t pinTemp = PIN_TEMP_ADC32,
                             uint8_t pinSolar = PIN_SOLAR_ADC34,
-                            uint8_t pinLipo = PIN_LIPO_ADC35) {
-        // Restore ADC register state after sleep
+                            uint8_t pinLipo = PIN_LIPO_ADC35,
+                            float calTempFactor = 0.83f, float calTempOffset = 155.0f,
+                            float calSolarFactor = 1.64f, float calSolarOffset = 315.0f,
+                            float calLipoFactor = 1.65f, float calLipoOffset = 307.0f) {
+#if CONFIG_IDF_TARGET_ESP32
+        // Restore ADC register state after sleep on classic ESP32
         if (_reg_b != 0) {
             WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, _reg_b);
             SET_PERI_REG_MASK(SENS_SAR_READ_CTRL2_REG, SENS_SAR2_DATA_INV);
         }
+#endif
 
         const int pins[3] = {pinTemp, pinSolar, pinLipo};
         long rawSum[3] = {0, 0, 0};
@@ -62,22 +71,22 @@ public:
         readings.raw_pin34 = rawSum[1] / 100;
         readings.raw_pin35 = rawSum[2] / 100;
 
-        // Nonlinearity calibration formulas for ESP32 ADC:
-        // pin 32: temp -> voltage[0] = int(voltage[0] * 0.83 + 155)
-        // pin 34: solar -> voltage[2] = int(voltage[2] * 1.64 + 315); if (voltage[2] == 315) voltage[2] = 0;
-        // pin 35: lipo  -> voltage[3] = int(voltage[3] * 1.65 + 307);
-
-        readings.temp_mv = static_cast<int>(readings.raw_pin32 * 0.83f + 155.0f);
+        // Nonlinearity calibration with configurable scaling factors and offsets
+        readings.temp_mv = static_cast<int>(readings.raw_pin32 * calTempFactor + calTempOffset);
         readings.temp_c  = readings.temp_mv / 10.0f;
 
-        int solar_calc = static_cast<int>(readings.raw_pin34 * 1.64f + 315.0f);
-        if (solar_calc == 315 || readings.raw_pin34 == 0) {
+        int solar_calc = static_cast<int>(readings.raw_pin34 * calSolarFactor + calSolarOffset);
+        if (solar_calc == (int)calSolarOffset || readings.raw_pin34 == 0) {
             solar_calc = 0;
         }
         readings.solar_mv = solar_calc;
         readings.solar_v  = readings.solar_mv / 1000.0f;
 
-        readings.lipo_mv = static_cast<int>(readings.raw_pin35 * 1.65f + 307.0f);
+        int lipo_calc = static_cast<int>(readings.raw_pin35 * calLipoFactor + calLipoOffset);
+        if (readings.raw_pin35 == 0) {
+            lipo_calc = 0;
+        }
+        readings.lipo_mv = lipo_calc;
         readings.lipo_v  = readings.lipo_mv / 1000.0f;
 
         return readings;

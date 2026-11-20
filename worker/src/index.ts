@@ -57,48 +57,52 @@ export default {
       }
 
       // ESP Web Tools Manifests for Web Serial Flashing
-      if (path === "/manifest.json") {
-        return withCors(
-          new Response(
-            JSON.stringify({
-              name: "Solar Telemetry Fleet (kreier/solar)",
-              version: env.STABLE_VERSION || "1.0.0",
-              funding_url: "https://github.com/kreier/solar",
-              new_install_prompt_erase: true,
-              builds: [
-                {
-                  chipFamily: "ESP32",
-                  parts: [
-                    { path: "firmware/bootloader.bin", offset: 4096 },
-                    { path: "firmware/partitions.bin", offset: 32768 },
-                    { path: "firmware/boot_app0.bin", offset: 57344 },
-                    { path: "firmware/firmware.bin", offset: 65536 }
-                  ]
-                }
-              ]
-            }),
-            {
-              status: 200,
-              headers: { "Content-Type": "application/json" }
-            }
-          )
-        );
-      }
+      if (path === "/manifest.json" || path.startsWith("/manifest-")) {
+        const board = url.searchParams.get("board") || (path.includes("s3") ? "esp32s3" : (path.includes("c5") ? "esp32c5" : "esp32"));
+        const versionParam = url.searchParams.get("version") || (path.includes("canary") ? "1.1.0-canary" : "1.0.2");
+        const isUpdate = path.includes("update") || url.searchParams.get("mode") === "update";
 
-      if (path === "/manifest-update.json") {
+        let chipFamily = "ESP32";
+        let bootloaderOffset = 4096;
+        let partitionOffset = 32768;
+        let bootApp0Offset = 57344;
+        let appOffset = 65536;
+
+        if (board === "esp32s3") {
+          chipFamily = "ESP32-S3";
+          bootloaderOffset = 0;
+          partitionOffset = 32768;
+          bootApp0Offset = 57344;
+          appOffset = 65536;
+        } else if (board === "esp32c5") {
+          chipFamily = "ESP32-C6"; // Compatible flasher family in ESP Web Tools
+          bootloaderOffset = 0;
+          partitionOffset = 32768;
+          bootApp0Offset = 57344;
+          appOffset = 65536;
+        }
+
+        const binPrefix = board === "esp32" ? "firmware" : `firmware-${board}`;
+        const parts = isUpdate
+          ? [{ path: `firmware/${binPrefix}.bin`, offset: appOffset }]
+          : [
+              { path: `firmware/bootloader.bin`, offset: bootloaderOffset },
+              { path: `firmware/partitions.bin`, offset: partitionOffset },
+              { path: `firmware/boot_app0.bin`, offset: bootApp0Offset },
+              { path: `firmware/${binPrefix}.bin`, offset: appOffset }
+            ];
+
         return withCors(
           new Response(
             JSON.stringify({
-              name: "Solar Telemetry Fleet (Update Only)",
-              version: env.STABLE_VERSION || "1.0.0",
+              name: `Solar Telemetry Fleet (${chipFamily} ${isUpdate ? "Update" : "Full"})`,
+              version: versionParam,
               funding_url: "https://github.com/kreier/solar",
-              new_install_prompt_erase: false,
+              new_install_prompt_erase: !isUpdate,
               builds: [
                 {
-                  chipFamily: "ESP32",
-                  parts: [
-                    { path: "firmware/firmware.bin", offset: 65536 }
-                  ]
+                  chipFamily: chipFamily,
+                  parts: parts
                 }
               ]
             }),
@@ -119,6 +123,33 @@ export default {
             status: 200,
             headers: { "Content-Type": "application/json" }
           })
+        );
+      }
+
+      // 4b. Toggle Canary Channel for a Station
+      if (path === "/api/station/canary" && request.method === "POST") {
+        const body = await request.json<{ station_id: string; is_canary: number }>();
+        if (!body.station_id) {
+          return withCors(
+            new Response(JSON.stringify({ error: "Missing required field: station_id" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" }
+            })
+          );
+        }
+        const db = new Database(env);
+        await env.DB.prepare("UPDATE stations SET is_canary = ?1 WHERE station_id = ?2")
+          .bind(body.is_canary ? 1 : 0, body.station_id)
+          .run();
+        return withCors(
+          new Response(
+            JSON.stringify({
+              success: true,
+              station_id: body.station_id,
+              is_canary: body.is_canary ? 1 : 0
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
         );
       }
 

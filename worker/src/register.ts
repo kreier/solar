@@ -19,7 +19,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     });
   }
 
-  const { station_id, location, description, bootstrap_secret } = body;
+  const { station_id, location, description, bootstrap_secret, firmware_version, is_canary } = body;
 
   if (!station_id || !bootstrap_secret) {
     return new Response(
@@ -46,7 +46,9 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     station_id,
     location || "Solar Station",
     description || "ESP32 Solar Telemetry Node",
-    deviceToken
+    deviceToken,
+    firmware_version,
+    is_canary
   );
 
   return new Response(

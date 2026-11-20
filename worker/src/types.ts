@@ -2,6 +2,7 @@ export interface Env {
   DB: D1Database;
   MASTER_PHRASE?: string;
   STABLE_VERSION?: string;
+  CANARY_VERSION?: string;
   WORKER_URL?: string;
   R2_BUCKET?: R2Bucket;
 }
@@ -11,6 +12,8 @@ export interface RegisterRequest {
   location?: string;
   description?: string;
   bootstrap_secret: string;
+  firmware_version?: string;
+  is_canary?: number;
 }
 
 export interface CycleMetrics {
@@ -24,11 +27,35 @@ export interface CycleMetrics {
   valid?: boolean;
 }
 
+export interface Ina3221Metrics {
+  ch1_solar?: {
+    voltage_v?: number;
+    current_ma?: number;
+    power_mw?: number;
+  };
+  ch3_load?: {
+    voltage_v?: number;
+    current_ma?: number;
+    power_mw?: number;
+    resistance_ohm?: number;
+  };
+}
+
+export interface BufferedBatchSample {
+  boot_count?: number;
+  solar_mv: number;
+  lipo_mv: number;
+  temp_c: number;
+  ina3221?: Ina3221Metrics;
+}
+
 export interface TelemetryPayload {
   station_id: string;
   location?: string;
   firmware_version?: string;
   boot_count?: number;
+  power_mode?: number;
+  is_canary?: number;
   solar_mv: number;
   solar_v?: number;
   lipo_mv: number;
@@ -40,6 +67,8 @@ export interface TelemetryPayload {
     pin34?: number;
     pin35?: number;
   };
+  ina3221?: Ina3221Metrics;
+  batch_samples?: BufferedBatchSample[];
   prev_cycle?: CycleMetrics;
   current_cycle?: CycleMetrics;
 }
@@ -81,4 +110,5 @@ export interface MeasurementRecord {
   cycle_upload_ms: number | null;
   cycle_total_ms: number | null;
   cycle_http_code: number | null;
+  raw_payload: string | null;
 }

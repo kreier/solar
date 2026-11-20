@@ -63,19 +63,21 @@ kreier/solar/
 │       ├── 0004-light-sleep-cadence-and-cycle-benchmarking.md
 │       └── 0005-minimal-spiffs-and-dual-ota-partitioning.md
 ├── firmware/
-│   ├── platformio.ini             # Unified PlatformIO build configuration
+│   ├── platformio.ini             # Unified PlatformIO build configuration (ESP32, ESP32-S3, ESP32-C5)
 │   ├── partitions/
 │   │   ├── default.csv            # Standard ESP32 4MB: 1.28MB app0/app1, 1.4MB SPIFFS, 64KB coredump
-│   │   └── min_spiffs.csv         # ESP32 4MB Flash: 1.9MB app0/app1, 192KB SPIFFS
+│   │   ├── min_spiffs.csv         # ESP32 4MB Flash: 1.9MB app0/app1, 192KB SPIFFS
+│   │   └── s3_16mb.csv            # ESP32-S3 16MB Flash: Dual 4MB OTA partitions, ~8MB LittleFS
 │   ├── include/
 │   │   ├── adc_reader.h           # 100x multisample & ADC nonlinearity formulas
+│   │   ├── ina3221_reader.h       # INA3221 3-channel I2C current & power monitor (0x40)
 │   │   ├── cycle_timer.h          # Startup, measure, wifi, ip, upload, http 200 benchmark
-│   │   ├── app_config.h           # NVS Preferences & Zero-Trust credential management
-│   │   ├── api_client.h           # Registration via MASTER_PHRASE & Bearer upload
+│   │   ├── app_config.h           # NVS Preferences, Power Mode, Canary, and hardware pins
+│   │   ├── api_client.h           # Registration via MASTER_PHRASE, Bearer upload & batch buffering
 │   │   ├── double_reset.h         # Double reset button detection in RTC memory
 │   │   ├── portal_manager.h       # Soft-AP captive setup web portal (192.168.4.1)
 │   │   ├── ota_manager.h          # Dual-partition OTA check & HTTPUpdate flashing
-│   │   └── sleep_manager.h        # 10-minute light sleep with radio power-down
+│   │   └── sleep_manager.h        # Deep Sleep (10-15 µA) and Light Sleep managers
 │   ├── src/
 │   │   └── main.cpp               # Firmware loop & telemetry coordinator
 │   └── solar/
@@ -108,6 +110,9 @@ kreier/solar/
 * **Pin 32**: Analog Temperature Sensor (10 mV / °C). Ratio 1:1.
 * **Pin 34**: Solar Panel Voltage through 1kΩ : 1kΩ voltage divider (2:1).
 * **Pin 35**: LiPo Battery Voltage through 10kΩ : 10kΩ voltage divider (2:1).
+* **I2C SDA (Pin 21/4/0) & SCL (Pin 22/5/1)**: INA3221 Precision Current/Power Monitor (0x40):
+  * **Channel 1**: Solar Panel Bus Voltage, Shunt Current (mA), and calculated Power (mW).
+  * **Channel 3**: Connected Load Bus Voltage, Shunt Current (mA), Power (mW), and Load Resistance (Ω).
 
 ### Nonlinearity Calibration Formulas
 Because of the ESP32 SAR ADC non-linearity (deadband below ~150 mV and compression at top of range), all channels use 100x multisampling and hardware-calibrated piecewise linear equations:
@@ -126,6 +131,15 @@ float solar_v = voltage[2] / 1000.0f;
 voltage[3] = int((voltage[3]) * 1.65 + 307);
 float lipo_v = voltage[3] / 1000.0f;
 ```
+
+### Power Modes & Energy Management
+1. **Minimal Energy Consumption (Mode 0)**:
+   - True Deep Sleep (`esp_deep_sleep_start()`), consuming ~10–15 µA.
+   - Wakes up every 10 minutes, samples ADC and INA3221 in ~15 ms, records into RTC Slow Memory (`RTC_DATA_ATTR`).
+   - Only once an hour (every 6th cycle) connects to Wi-Fi and uploads the accumulated batch payload.
+   - Wi-Fi Fast-Connect: Caches BSSID and Channel in RTC memory to bypass full AP scan.
+2. **Balanced Mode (Mode 1)**:
+   - Measures and performs immediate upload every 10 minutes.
 
 ---
 

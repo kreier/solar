@@ -5,21 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-canary] - 2026-11-20
+
+### Added
+- **Multi-Microcontroller Board Support**:
+  - **ESP32 (Standard 4MB Flash)**: Partition scheme using `min_spiffs.csv` (1.9MB app0, 1.9MB app1, 192KB SPIFFS) to accommodate expanded telemetry features.
+  - **ESP32-S3 (16MB Flash)**: New partition scheme `s3_16mb.csv` with dual 4MB OTA application partitions and ~8MB LittleFS storage space.
+  - **ESP32-C5 (Dual-Band 2.4/5GHz Wi-Fi 6)**: Added support for next-gen RISC-V SoC with Wi-Fi 6 high-efficiency connectivity.
+- **Selectable Power & Energy Modes**:
+  - **Minimal Energy Consumption (Mode 0)**:
+    - Microcontroller enters true Deep Sleep (`esp_deep_sleep_start()`), consuming ~10–15 µA.
+    - Wakes up every 10 minutes, samples ADC and INA3221 sensors in ~15 ms, and records readings into RTC Slow Memory (`RTC_DATA_ATTR`).
+    - Connects to Wi-Fi and uploads telemetry **only once an hour** (every 6th cycle) in a single compact batch.
+    - Wi-Fi Fast-Connect: Caches BSSID and RF Channel in RTC memory to bypass full scan, achieving sub-second association.
+    - Daily OTA check: Runs firmware check once per day (every 144 cycles).
+  - **Balanced Mode (Mode 1)**:
+    - Measures every 10 minutes and performs immediate telemetry upload with fast BSSID reconnect.
+- **INA3221 Precision Power Monitor (I2C 0x40)**:
+  - Channel 1: Solar Panel Bus Voltage, Shunt Current (mA), and calculated Power (mW).
+  - Channel 3: Connected Load Bus Voltage, Shunt Current (mA), calculated Power (mW), and Load Resistance (Ω).
+  - Configurable I2C pins (SDA, SCL), I2C address, and shunt resistor (Ω) in Soft-AP portal and NVS.
+- **Dedicated Battery Analytics & Calculated Autonomy**:
+  - Dedicated interactive card with timeframes: 1 Day, 7 Days, 30 Days, and 3 Months (90 Days).
+  - Calculated 24-hour runtime estimate (detects diurnal solar recharge / self-sustaining status vs discharge rate to 3.3V cutoff).
+  - Calculated 7-day trend estimate and 30-day long-term autonomy estimate.
+- **Canary Release Channel**:
+  - Canary versioning (`v1.1.0-canary`) with per-station toggle in Soft-AP setup portal, NVS, and Cloudflare D1 edge database.
+  - Stations on the canary channel automatically receive canary OTA updates; stable stations remain on production releases.
+- **Web Serial Multi-Board Flasher**:
+  - Web flasher modal now provides dropdowns for Board (ESP32, ESP32-S3, ESP32-C5), Channel (v1.0.2 Stable vs v1.1.0 Canary), and Mode (Clean Install vs Update Only).
+
 ## [1.0.2] - 2026-11-18
 
 ### Added
+- **Enclosure Temperature Visual Adjustment**:
+  - Extended chart y-axis limits to 10–75°C with dynamic headroom scaling, preventing diurnal temperature clipping when nodes operate inside sun-heated transparent enclosures (reaching 55–65°C+).
+  - Dynamic status badge on temperature card ("High (Sun Enclosure)" / "Warm (Sun)" / "Nominal").
+- **Explicit Website & Firmware Version Indicators**:
+  - Prominently displays Website / UI version (`Web v1.0.2`) in header badge and footer.
+  - Displays Node Firmware version (`Node FW v...`) dynamically in station header and footer.
+  - Telemetry payload and registration protocol transmit `firmware_version` to Cloudflare D1.
 - **Soft-AP Connection Stability & Auto-Reboot**:
   - Automatically pauses configuration timeout while any client device is connected (`WiFi.softAPgetStationNum() > 0`), ensuring users are never disconnected while filling out configuration forms.
   - Automatically reboots ESP32 node 1 second after submitting configuration via the `/save` endpoint.
   - Password-protected Soft-AP Wi-Fi network (`12345678`), clearly printed to the serial interface at boot.
-- **Web UI Station Header & Telemetry Firmware Tracking**:
-  - Prominently displays the active station firmware version in the header subtitle badge alongside Station Name and Location.
-  - Telemetry payload includes `firmware_version` (`FIRMWARE_VERSION="1.0.2"`), stored in D1 database and reflected in edge API responses.
 - **Daily Automatic OTA Firmware Check**:
   - Firmware executes an automatic check for newer releases once per day (every 144 cycles / 24 hours, plus on cycle #1).
   - Added serial command `OTA` to trigger an immediate Over-The-Air update check on demand.
-- **Version Bump**:
-  - Updated firmware, web dashboards, and Web Serial flasher manifests to v1.0.2.
 
 ## [1.0.1] - 2026-11-18
 
