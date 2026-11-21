@@ -45,7 +45,7 @@ export class Database {
 
   async getStation(stationId: string): Promise<StationRecord | null> {
     return await this.db
-      .prepare(`SELECT * FROM stations WHERE station_id = ?1 LIMIT 1`)
+      .prepare(`SELECT * FROM stations WHERE station_id = ?1 COLLATE NOCASE LIMIT 1`)
       .bind(stationId)
       .first<StationRecord>();
   }
