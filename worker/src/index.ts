@@ -59,23 +59,48 @@ export default {
 
       // ESP Web Tools Manifests for Web Serial Flashing
       if (path === "/manifest.json" || path.startsWith("/manifest-")) {
-        const isCanary = path.includes("canary") || url.searchParams.get("version") === "1.1.7-canary";
+        const queryVer = url.searchParams.get("version");
+        const isCanary = queryVer ? queryVer.includes("canary") : (path.includes("canary") || url.searchParams.get("version") === "1.1.7-canary");
         const isUpdate = path.includes("update") || url.searchParams.get("mode") === "update";
-        const versionStr = isCanary ? (env.CANARY_VERSION || "1.1.7-canary") : (env.STABLE_VERSION || "1.1.5");
+        const versionStr = queryVer || (isCanary ? (env.CANARY_VERSION || "1.1.7-canary") : (env.STABLE_VERSION || "1.1.5"));
 
         const builds = isUpdate
           ? [
               {
                 chipFamily: "ESP32",
-                parts: [{ path: `firmware/firmware-esp32-v${versionStr}.bin`, offset: 65536 }]
+                parts: [
+                  { path: "firmware/bootloader-esp32.bin", offset: 4096 },
+                  { path: "firmware/partitions-esp32.bin", offset: 32768 },
+                  { path: "firmware/boot_app0.bin", offset: 57344 },
+                  { path: `firmware/firmware-esp32-v${versionStr}.bin`, offset: 65536 }
+                ]
               },
               {
                 chipFamily: "ESP32-S3",
-                parts: [{ path: `firmware/firmware-esp32s3-v${versionStr}.bin`, offset: 65536 }]
+                parts: [
+                  { path: "firmware/bootloader-esp32s3.bin", offset: 0 },
+                  { path: "firmware/partitions-esp32s3.bin", offset: 32768 },
+                  { path: "firmware/boot_app0.bin", offset: 57344 },
+                  { path: `firmware/firmware-esp32s3-v${versionStr}.bin`, offset: 65536 }
+                ]
               },
               {
                 chipFamily: "ESP32-C6",
-                parts: [{ path: `firmware/firmware-esp32c5-v${versionStr}.bin`, offset: 65536 }]
+                parts: [
+                  { path: "firmware/bootloader-esp32c5.bin", offset: 0 },
+                  { path: "firmware/partitions-esp32c5.bin", offset: 32768 },
+                  { path: "firmware/boot_app0.bin", offset: 57344 },
+                  { path: `firmware/firmware-esp32c5-v${versionStr}.bin`, offset: 65536 }
+                ]
+              },
+              {
+                chipFamily: "ESP32-C5",
+                parts: [
+                  { path: "firmware/bootloader-esp32c5.bin", offset: 0 },
+                  { path: "firmware/partitions-esp32c5.bin", offset: 32768 },
+                  { path: "firmware/boot_app0.bin", offset: 57344 },
+                  { path: `firmware/firmware-esp32c5-v${versionStr}.bin`, offset: 65536 }
+                ]
               }
             ]
           : [
@@ -90,6 +115,10 @@ export default {
               {
                 chipFamily: "ESP32-C6",
                 parts: [{ path: `firmware/firmware-esp32c5-merged-v${versionStr}.bin`, offset: 0 }]
+              },
+              {
+                chipFamily: "ESP32-C5",
+                parts: [{ path: `firmware/firmware-esp32c5-merged-v${versionStr}.bin`, offset: 0 }]
               }
             ];
 
@@ -99,7 +128,7 @@ export default {
               name: `Solar Telemetry Fleet (${versionStr}${isUpdate ? " Update" : ""})`,
               version: versionStr,
               funding_url: "https://github.com/kreier/solar",
-              new_install_prompt_erase: !isUpdate,
+              new_install_prompt_erase: true, // Always prompt erase so user can uncheck it to preserve NVS
               builds
             }),
             {

@@ -30,6 +30,15 @@
         { "path": "firmware/boot_app0.bin", "offset": 57344 },
         { "path": "firmware/firmware-esp32c5-v1.1.7-canary.bin", "offset": 65536 }
       ]
+    },
+    {
+      "chipFamily": "ESP32-C5",
+      "parts": [
+        { "path": "firmware/bootloader-esp32c5.bin", "offset": 0 },
+        { "path": "firmware/partitions-esp32c5.bin", "offset": 32768 },
+        { "path": "firmware/boot_app0.bin", "offset": 57344 },
+        { "path": "firmware/firmware-esp32c5-v1.1.7-canary.bin", "offset": 65536 }
+      ]
     }
   ]
 }

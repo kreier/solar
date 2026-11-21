@@ -21,6 +21,12 @@
       "parts": [
         { "path": "firmware/firmware-esp32c5-merged-v1.1.5.bin", "offset": 0 }
       ]
+    },
+    {
+      "chipFamily": "ESP32-C5",
+      "parts": [
+        { "path": "firmware/firmware-esp32c5-merged-v1.1.5.bin", "offset": 0 }
+      ]
     }
   ]
 }

@@ -785,7 +785,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
           </div>
 
           <!-- Mode Radio Selection -->
-          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
             <label id="modeCleanLabel" class="mode-card active" onclick="setFlashMode('clean')">
               <input type="radio" name="flashModeRadio" value="clean" checked style="margin-top: 0.2rem;">
               <div>
@@ -797,10 +797,14 @@ export function renderDashboardHtml(workerUrl?: string): string {
             <label id="modeUpdateLabel" class="mode-card" onclick="setFlashMode('update')">
               <input type="radio" name="flashModeRadio" value="update" style="margin-top: 0.2rem;">
               <div>
-                <div class="mode-title">⚡ Update Firmware Only (Keep Settings &amp; Data)</div>
+                <div class="mode-title">⚡ Update Firmware (Keep Settings &amp; Data)</div>
                 <div class="mode-desc">Flashes bootloader, partitions, otadata, and app. Preserves Wi-Fi credentials, tokens, and NVS configuration. In the installer prompt, leave <b>"Erase device" unchecked</b>.</div>
               </div>
             </label>
+          </div>
+
+          <div id="updatePreserveNotice" style="display:none; margin-bottom:1rem; padding:0.6rem 0.85rem; border-radius:8px; background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3); font-size:0.8rem; color:#7dd3fc; line-height:1.4;">
+            💡 <strong>Preserving Settings:</strong> When the ESP Web Tools dialog opens, <strong>leave the "Erase device" checkbox UNCHECKED</strong>. This updates your bootloader, partitions, and application code while keeping your stored Wi-Fi credentials, tokens, and NVS calibration untouched!
           </div>
 
           <!-- ESP Web Install Button -->
@@ -1365,6 +1369,8 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       currentFlashMode = mode;
       document.getElementById("modeCleanLabel").classList.toggle("active", mode === "clean");
       document.getElementById("modeUpdateLabel").classList.toggle("active", mode === "update");
+      const notice = document.getElementById("updatePreserveNotice");
+      if (notice) notice.style.display = (mode === "update") ? "block" : "none";
       updateFlasherManifest();
     }
 
@@ -1376,9 +1382,9 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const btn = document.getElementById("espWebInstallBtn");
       let manifestFile = "manifest.json";
       if (ver.includes("canary")) {
-        manifestFile = isUpdate ? "manifest-canary-update.json" : "manifest-canary.json";
+        manifestFile = isUpdate ? \`manifest-canary-update.json?version=\${ver}\` : \`manifest-canary.json?version=\${ver}\`;
       } else {
-        manifestFile = isUpdate ? "manifest-update.json" : "manifest.json";
+        manifestFile = isUpdate ? \`manifest-update.json?version=\${ver}\` : \`manifest.json?version=\${ver}\`;
       }
       btn.setAttribute("manifest", manifestFile);
 
