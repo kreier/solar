@@ -465,7 +465,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="title-area">
         <h1>
           <span>☀️</span> Solar Telemetry Fleet
-          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.10</span>
+          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.11</span>
         </h1>
         <div class="subtitle" id="station-subtitle">Connecting to Cloudflare D1 Edge Ingestion...</div>
       </div>
@@ -733,9 +733,9 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <p>ESP32 Solar Telemetry Fleet &bull; Minimal SPIFFS &bull; Dual OTA &bull; Cloudflare Edge &amp; D1 Database</p>
       <p>
         <a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull;
-        <span>Website v1.1.10</span> &bull;
+        <span>Website v1.1.11</span> &bull;
         <span>Firmware v<span id="fw-version">1.1.5</span> (Stable)</span> &bull;
-        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.9 Canary</span> &bull;
+        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.11 Canary</span> &bull;
         <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a>
       </p>
     </footer>
@@ -747,7 +747,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="modal-header">
         <div class="modal-title">
           <span>⚡ Web Firmware Installer</span>
-          <span class="badge badge-amber" id="modal-ver-badge">v1.1.9 Canary</span>
+          <span class="badge badge-amber" id="modal-ver-badge">v1.1.11 Canary</span>
         </div>
         <button class="modal-close-btn" onclick="closeFlashModal()" title="Close dialog">✕</button>
       </div>
@@ -859,7 +859,8 @@ export function renderDashboardHtml(workerUrl?: string): string {
               <div>
                 <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Firmware Version:</label>
                 <select id="otaFwSelect" style="width:100%;font-size:0.82rem;padding:0.4rem;background:#0d1117;color:#f0f6fc;border:1px solid #30363d;border-radius:6px;">
-                  <option value="1.1.9-canary" selected>v1.1.9 Canary (Latest: CH 12-13 VN, 48Ω Load)</option>
+                  <option value="1.1.11-canary" selected>v1.1.11 Canary (Latest: RF Congestion Bar Graph, Rolling 24h)</option>
+                  <option value="1.1.9-canary">v1.1.9 Canary (CH 12-13 VN, 48Ω Load)</option>
                   <option value="1.1.8-canary">v1.1.8 Canary</option>
                   <option value="1.1.7-canary">v1.1.7 Canary</option>
                   <option value="1.1.6-canary">v1.1.6 Canary</option>
@@ -925,7 +926,8 @@ export function renderDashboardHtml(workerUrl?: string): string {
             <div>
               <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;color:var(--text-muted);">Firmware Release Channel:</label>
               <select id="flasherVerSelect" style="width:100%;" onchange="updateFlasherManifest()">
-                <option value="1.1.9-canary" selected>v1.1.9 Canary (Channels 12-13 VN Wi-Fi, 48Ω Static Ohmic Power)</option>
+                <option value="1.1.11-canary" selected>v1.1.11 Canary (RF Congestion Bar Graph, Rolling 24h Spectrum)</option>
+                <option value="1.1.9-canary">v1.1.9 Canary (Channels 12-13 VN Wi-Fi, 48Ω Static Ohmic Power)</option>
                 <option value="1.1.8-canary">v1.1.8 Canary (Robust Multi-Manifest, Non-Destructive Update, Coredump Partition)</option>
                 <option value="1.1.7-canary">v1.1.7 Canary (INA3221 CH2, Solar Power Telemetry, LiPo Autonomy Analytics)</option>
                 <option value="1.1.6-canary">v1.1.6 Canary (S3 USB Update Bootloader, Soft-AP Verbose, Phy My Hung)</option>
@@ -3434,7 +3436,7 @@ let currentFlashMode = "clean";
         );
         const scanTime = latestRf ? new Date(latestRf.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
         const latestStr = scanTime ? \` • Latest scan: <b>\${scanTime}</b>\` : "";
-        subtitleEl.innerHTML = \`Today's 2.4 GHz channels (1–13, BLE) and 7-day diurnal trend comparison\${latestStr}\`;
+        subtitleEl.innerHTML = \`Past 24 hours 2.4 GHz channels (1–13, BLE) and 7-day diurnal trend comparison\${latestStr}\`;
       }
 
       // Sync active state of Peak/Avg mode toggle buttons
@@ -3446,13 +3448,38 @@ let currentFlashMode = "clean";
       }
 
       const numRows = 28;
-      const numCols = 48; // 48 half-hour slots: 00:00 to 23:30
+      const numCols = 48; // 48 half-hour timeslots
+      const slotDuration = 30 * 60 * 1000;
+      const nowMs = Date.now();
+
+      // Upper Section: Rolling past 24 hours (ending at the current 30-min block on far right)
+      const currentSlotStart = Math.floor(nowMs / slotDuration) * slotDuration;
+      const upperColLabels = [];
+      const upperTimeSlots = [];
+      for (let c = 0; c < numCols; c++) {
+        const start = currentSlotStart - (47 - c) * slotDuration;
+        const end = start + slotDuration;
+        const dStart = new Date(start);
+        const dEnd = new Date(end);
+        const isYest = dStart.getDate() !== new Date().getDate();
+        const dayPrefix = isYest ? (dStart.toLocaleDateString([], { weekday: "short" }) + " ") : "Today ";
+        upperTimeSlots.push({ start, end, label: \`\${dayPrefix}\${dStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – \${dEnd.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}\` });
+        upperColLabels.push(dStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      }
+
+      // Lower Section: 0:00 to 24:00 diurnal time of day
+      const lowerColLabels = [];
+      for (let c = 0; c < numCols; c++) {
+        const hour = Math.floor(c / 2);
+        const min = (c % 2) * 30;
+        lowerColLabels.push(\`\${String(hour).padStart(2, "0")}:\${String(min).padStart(2, "0")}\`);
+      }
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayMidnight = today.getTime();
 
-      // Generate the past 7 days info (dayLabels[0] is 6 days ago, dayLabels[6] is Today)
+      // Generate the past 7 days info (dayLabels[0] is 6 days ago, dayLabels[6] is Today at the bottom)
       const dayLabels = [];
       for (let d = 6; d >= 0; d--) {
         const dDate = new Date(todayMidnight - d * 86400 * 1000);
@@ -3465,14 +3492,14 @@ let currentFlashMode = "clean";
       }
 
       const rowMeta = [];
-      // 0..12: Today Wi-Fi channels 1..13
+      // 0..12: Wi-Fi channels 1..13 (Past 24 Hours)
       for (let ch = 1; ch <= 13; ch++) {
-        rowMeta.push({ group: 0, label: \`CH \${ch}\`, title: \`Wi-Fi Channel \${ch} (Today)\`, ch: ch, type: "wifi_ch" });
+        rowMeta.push({ group: 0, label: \`CH \${ch}\`, title: \`Wi-Fi Channel \${ch} (Past 24h)\`, ch: ch, type: "wifi_ch" });
       }
-      // 13: Today BLE
-      rowMeta.push({ group: 0, label: "BLE", title: "Bluetooth LE Density (Today)", type: "ble_today" });
+      // 13: BLE (Past 24 Hours)
+      rowMeta.push({ group: 0, label: "BLE", title: "Bluetooth LE Density (Past 24h)", type: "ble_today" });
 
-      // 14..20: 7 Days Wi-Fi Activity
+      // 14..20: 7 Days Wi-Fi Activity (0:00 - 24:00, Today at bottom)
       for (let i = 0; i < 7; i++) {
         const dl = dayLabels[i];
         rowMeta.push({
@@ -3485,7 +3512,7 @@ let currentFlashMode = "clean";
         });
       }
 
-      // 21..27: 7 Days BLE Devices
+      // 21..27: 7 Days BLE Devices (0:00 - 24:00, Today at bottom)
       for (let i = 0; i < 7; i++) {
         const dl = dayLabels[i];
         rowMeta.push({
@@ -3498,19 +3525,8 @@ let currentFlashMode = "clean";
         });
       }
 
-      // Column labels: 00:00, 00:30, 01:00, ..., 23:30
-      const colLabels = [];
-      for (let c = 0; c < numCols; c++) {
-        const hour = Math.floor(c / 2);
-        const min = (c % 2) * 30;
-        colLabels.push(\`\${String(hour).padStart(2, "0")}:\${String(min).padStart(2, "0")}\`);
-      }
-
       // Build cell data matrix: cellData[col][row]
       const cellData = [];
-      const slotDuration = 30 * 60 * 1000;
-      const nowMs = Date.now();
-
       let globalMaxPkts = 0;
       let globalMaxBle = 0;
       const chTotals = new Array(14).fill(0);
@@ -3518,13 +3534,24 @@ let currentFlashMode = "clean";
 
       for (let c = 0; c < numCols; c++) {
         cellData[c] = [];
-        const slotOffset = c * slotDuration;
 
         for (let r = 0; r < numRows; r++) {
           const meta = rowMeta[r];
-          const slotStart = (meta.group === 0 ? todayMidnight : meta.dateMs) + slotOffset;
-          const slotEnd = slotStart + slotDuration;
-          const isFuture = slotStart > nowMs;
+          let slotStart, slotEnd, isFuture, timeLabel;
+
+          if (meta.group === 0) {
+            // Upper rolling 24h
+            slotStart = upperTimeSlots[c].start;
+            slotEnd = upperTimeSlots[c].end;
+            isFuture = false; // past 24 hours ending now
+            timeLabel = upperTimeSlots[c].label;
+          } else {
+            // Lower fixed 0:00 - 24:00 diurnal
+            slotStart = meta.dateMs + c * slotDuration;
+            slotEnd = slotStart + slotDuration;
+            isFuture = slotStart > nowMs;
+            timeLabel = \`\${meta.label} (\${meta.fullDate}) \${lowerColLabels[c]}\`;
+          }
 
           const slotRecs = isFuture ? [] : cachedRfRecords.filter(rec => {
             const t = new Date(rec.timestamp).getTime();
@@ -3536,7 +3563,7 @@ let currentFlashMode = "clean";
           let extraInfo = "";
 
           if (meta.group === 0) {
-            // Today Wi-Fi Channel
+            // Upper Section: Wi-Fi Channel
             if (meta.type === "wifi_ch") {
               const ch = meta.ch;
               const readings = [];
@@ -3569,7 +3596,7 @@ let currentFlashMode = "clean";
                 if (rawVal > globalMaxPkts) globalMaxPkts = Math.round(rawVal);
               }
             } else {
-              // Today BLE
+              // Upper Section: BLE
               const readings = slotRecs.map(rec => rec.ble_unique_devices || 0);
               if (readings.length > 0) {
                 if (currentRfMode === "avg") {
@@ -3637,7 +3664,7 @@ let currentFlashMode = "clean";
             rawVal: rawVal,
             sampleCount: slotRecs.length,
             isFuture: isFuture,
-            timeLabel: colLabels[c],
+            timeLabel: timeLabel,
             meta: meta,
             extraInfo: extraInfo
           };
@@ -3692,7 +3719,7 @@ let currentFlashMode = "clean";
       // Render to Canvas
       const dpr = window.devicePixelRatio || 1;
       const width = container.clientWidth || 800;
-      const height = 560;
+      const height = 580;
 
       canvas.width = width * dpr;
       canvas.height = height * dpr;
@@ -3706,10 +3733,11 @@ let currentFlashMode = "clean";
       ctx.fillStyle = "#0d1117";
       ctx.fillRect(0, 0, width, height);
 
-      const margin = { left: 54, right: 16, top: 22, bottom: 26 };
+      const margin = { left: 54, right: 18, top: 22, bottom: 26 };
       const bleDivider = 8; // Distance between 13 channels and BLE
-      const groupDivider = 22; // Gap before 7-day groups (lowered by one line for headings)
-      const totalDividers = bleDivider + 2 * groupDivider;
+      const upperAxisGap = 26; // Gap after row 13 for upper 24h X-axis + Wi-Fi 7D heading
+      const groupDivider = 22; // Gap before BLE 7-day group
+      const totalDividers = bleDivider + upperAxisGap + groupDivider;
       const plotWidth = width - margin.left - margin.right;
       const plotHeight = height - margin.top - margin.bottom - totalDividers;
 
@@ -3718,13 +3746,15 @@ let currentFlashMode = "clean";
       const cellW = (plotWidth - (numCols - 1) * gapX) / numCols;
       const cellH = (plotHeight - (numRows - 1) * gapY) / numRows;
 
-      // Calculate row Y positions accounting for group dividers
+      // Calculate row Y positions
       const rowYPositions = [];
       let currentY = margin.top;
       for (let r = 0; r < numRows; r++) {
         if (r === 13) {
           currentY += bleDivider;
-        } else if (r === 14 || r === 21) {
+        } else if (r === 14) {
+          currentY += upperAxisGap;
+        } else if (r === 21) {
           currentY += groupDivider;
         }
         rowYPositions[r] = currentY;
@@ -3742,7 +3772,6 @@ let currentFlashMode = "clean";
         cellData,
         rowYPositions,
         rowMeta,
-        colLabels,
         width,
         height
       };
@@ -3755,13 +3784,13 @@ let currentFlashMode = "clean";
       ctx.textBaseline = "bottom";
 
       ctx.fillStyle = "#8b949e";
-      ctx.fillText("2.4 GHz SPECTRUM (TODAY)", margin.left, margin.top - 5);
+      ctx.fillText("2.4 GHz SPECTRUM — PAST 24 HOURS (FAR RIGHT = LAST 30 MIN)", margin.left, margin.top - 5);
 
       ctx.fillStyle = "#f59e0b";
-      ctx.fillText(currentRfMode === "avg" ? "WI-FI AVG ACTIVITY (LAST 7 DAYS)" : "WI-FI PEAK ACTIVITY (LAST 7 DAYS)", margin.left, rowYPositions[14] - 6);
+      ctx.fillText(currentRfMode === "avg" ? "WI-FI AVG ACTIVITY — LAST 7 DAYS (0:00 → 24:00, TODAY AT BOTTOM)" : "WI-FI PEAK ACTIVITY — LAST 7 DAYS (0:00 → 24:00, TODAY AT BOTTOM)", margin.left, rowYPositions[14] - 6);
 
       ctx.fillStyle = "#38bdf8";
-      ctx.fillText("BLE DEVICE DENSITY (LAST 7 DAYS)", margin.left, rowYPositions[21] - 6);
+      ctx.fillText("BLE DEVICE DENSITY — LAST 7 DAYS (0:00 → 24:00, TODAY AT BOTTOM)", margin.left, rowYPositions[21] - 6);
 
       // Draw Grid Cells
       for (let c = 0; c < numCols; c++) {
@@ -3771,7 +3800,7 @@ let currentFlashMode = "clean";
           const y = rowYPositions[r];
 
           if (item.isFuture) {
-            ctx.fillStyle = "#10141a"; // Future slot: subtly dimmed
+            ctx.fillStyle = "#10141a"; // Future slot: dimmed
             ctx.fillRect(x, y, cellW, cellH);
           } else if (item.val === 0) {
             ctx.fillStyle = "#161b22"; // Active slot with 0 packets/devices
@@ -3786,46 +3815,19 @@ let currentFlashMode = "clean";
         }
       }
 
-      // Draw NOW vertical indicator line
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-      const currentFrac = currentMinutes / 30; // 0..48 fractional column
-      if (currentFrac >= 0 && currentFrac <= numCols) {
-        const nowX = margin.left + currentFrac * (cellW + gapX);
+      // Draw Upper Section Rolling 24h X-Axis Ticks (below row 13)
+      ctx.font = "9px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillStyle = "#8b949e";
 
-        ctx.save();
-        ctx.strokeStyle = "rgba(239, 68, 68, 0.85)";
-        ctx.setLineDash([3, 2]);
-        ctx.lineWidth = 1.5;
-
-        // Today 2.4 GHz & BLE group (rows 0..13)
-        ctx.beginPath();
-        ctx.moveTo(nowX, margin.top);
-        ctx.lineTo(nowX, rowYPositions[13] + cellH);
-        ctx.stroke();
-
-        // Today row in Wi-Fi 7D (row 20)
-        ctx.beginPath();
-        ctx.moveTo(nowX, rowYPositions[20]);
-        ctx.lineTo(nowX, rowYPositions[20] + cellH);
-        ctx.stroke();
-
-        // Today row in BLE 7D (row 27)
-        ctx.beginPath();
-        ctx.moveTo(nowX, rowYPositions[27]);
-        ctx.lineTo(nowX, rowYPositions[27] + cellH);
-        ctx.stroke();
-
-        // Draw "NOW" badge at the top
-        ctx.fillStyle = "rgba(239, 68, 68, 0.9)";
-        ctx.fillRect(nowX - 14, margin.top - 14, 28, 11);
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 8px monospace";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("NOW", nowX, margin.top - 8);
-        ctx.restore();
+      for (let c = 0; c < numCols; c += 6) {
+        const x = margin.left + c * (cellW + gapX) + cellW / 2;
+        ctx.fillText(upperColLabels[c], x, rowYPositions[13] + cellH + 3);
       }
+      const xLast = margin.left + 47 * (cellW + gapX) + cellW / 2;
+      ctx.fillStyle = "#38bdf8";
+      ctx.fillText("Now", xLast, rowYPositions[13] + cellH + 3);
 
       // Draw Row Labels
       ctx.font = "10px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -3845,15 +3847,16 @@ let currentFlashMode = "clean";
         ctx.fillText(meta.label, margin.left - 6, y);
       }
 
-      // Draw Column Ticks (X-Axis)
+      // Draw Lower Section Diurnal 0:00 - 24:00 X-Axis Ticks (below row 27)
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.fillStyle = "#8b949e";
 
       for (let c = 0; c < numCols; c += 6) {
         const x = margin.left + c * (cellW + gapX) + cellW / 2;
-        ctx.fillText(colLabels[c], x, rowYPositions[numRows - 1] + cellH + 6);
+        ctx.fillText(lowerColLabels[c], x, rowYPositions[numRows - 1] + cellH + 6);
       }
+      ctx.fillText("24:00", margin.left + numCols * (cellW + gapX) - gapX, rowYPositions[numRows - 1] + cellH + 6);
 
       if (!rfCanvasInitialized) {
         initRfCanvasListeners(canvas);
@@ -3901,19 +3904,19 @@ let currentFlashMode = "clean";
 
               if (item.isFuture) {
                 tooltip.innerHTML = \`
-                  <div style="font-weight:600; color:\${isBle ? '#38bdf8' : '#fbbf24'};\b">\${item.meta.title}</div>
+                  <div style="font-weight:600; color:\${isBle ? '#38bdf8' : '#fbbf24'};">\${item.meta.title}</div>
                   <div>Time: \${item.timeLabel}</div>
                   <div style="color:var(--text-muted); font-style:italic;">⏳ Future / Pending time slot</div>
                 \`;
               } else if (!item.sampleCount) {
                 tooltip.innerHTML = \`
-                  <div style="font-weight:600; color:\${isBle ? '#38bdf8' : '#fbbf24'};\b">\${item.meta.title}</div>
+                  <div style="font-weight:600; color:\${isBle ? '#38bdf8' : '#fbbf24'};">\${item.meta.title}</div>
                   <div>Time: \${item.timeLabel}</div>
                   <div style="color:var(--text-muted);">No samples recorded (0 pkts)</div>
                 \`;
               } else {
                 tooltip.innerHTML = \`
-                  <div style="font-weight:600; color:\${isBle ? '#38bdf8' : '#fbbf24'};\b">\${item.meta.title}</div>
+                  <div style="font-weight:600; color:\${isBle ? '#38bdf8' : '#fbbf24'};">\${item.meta.title}</div>
                   <div>Time: \${item.timeLabel} (\${item.sampleCount} \${item.sampleCount === 1 ? 'sample' : 'samples'})</div>
                   <div>\${modeLabel}: <b>\${displayVal}</b> \${unit}\${extra}</div>
                 \`;

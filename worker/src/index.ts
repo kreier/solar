@@ -82,7 +82,7 @@ export default {
         const queryVer = url.searchParams.get("version");
         const isUpdate = path.includes("update") || url.searchParams.get("mode") === "update";
         const isCanary = (queryVer || extractedVer || path).includes("canary");
-        const versionStr = queryVer || extractedVer || (isCanary ? (env.CANARY_VERSION || "1.1.9-canary") : (env.STABLE_VERSION || "1.1.5"));
+        const versionStr = queryVer || extractedVer || (isCanary ? (env.CANARY_VERSION || "1.1.11-canary") : (env.STABLE_VERSION || "1.1.5"));
 
         const builds = isUpdate
           ? [

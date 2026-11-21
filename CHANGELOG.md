@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.11-canary] - 2026-11-22
+
+### Added & Enhanced
+- **Firmware Serial Wi-Fi Congestion Visualizer (`1.1.11-canary`)**:
+  - Implemented an ASCII/text bar graph rendered directly to the Serial console after each RF channel sweep (channels 1–13).
+  - Visually scales congestion bars (`max_bar_width = 24`) relative to peak airtime across all channels, displays exact measured packet rates (`pkts/s`), and flags the most congested channel with `*`.
+  - Upgraded build environments (`esp32dev`, `esp32s3`, `esp32c5`) to firmware version `1.1.11-canary`.
+  - Generated and published dual-mode installer manifests (`manifest-v1.1.11-canary.json` and `manifest-v1.1.11-canary-update.json`) and compiled binaries (`esp32`, `esp32s3`, `esp32c5`).
+- **RF Spectrum & Diurnal Heatmap Dual Timeline Alignment (`Web v1.1.11`)**:
+  - **Upper Spectrum Analyzer (Past 24 Hours Rolling Window)**: The 13 Wi-Fi channels and BLE density grid (Group 0) now represents a continuous rolling 48-timeslot window for the past 24 hours, ending with the current 30-minute block on the far right (column 47). This completely eliminates artificial blank/future columns after midnight.
+  - **Lower Diurnal Heatmaps (Calendar Day 0:00–24:00)**: The 7-day Wi-Fi and 7-day BLE diurnal heatmaps retain a calendar-aligned 0:00 to 24:00 X-axis, with the current day at the bottom (rows 20 and 27) progressing left-to-right as the day unfolds.
+  - **Dedicated Dual X-Axes**: Positioned distinct time tick labels below row 13 for the rolling 24-hour spectrum (with "Now" marked at column 47) and below row 27 for the 0:00–24:00 diurnal trend.
+  - **Cleaned Visual Presentation**: Removed the vertical dashed "NOW" indicator line and badge from the canvas to avoid confusion between the rolling and diurnal coordinate spaces.
+- **Worker Edge Updates**:
+  - Bumped Cloudflare Worker environment `CANARY_VERSION` and default fallbacks to `1.1.11-canary`.
+  - Synchronized server-side rendered dashboard in `worker/src/frontend.ts` with static mirror in `docs/index.html` and `docs/404.html`.
+
 ## [1.1.10] - 2026-11-22
 
 ### Added & Enhanced

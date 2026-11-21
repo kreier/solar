@@ -73,7 +73,24 @@ public:
         metrics.ble_unique_count = (max_pkts > 10) ? (max_pkts / 20 + (max_pkts % 7)) : 0;
         if (metrics.ble_unique_count > 64) metrics.ble_unique_count = 64;
 
-        Serial.printf("[Monitor] RF Scan complete: Busiest CH %d (%lu pkts/sec), BLE Devices: %lu\n",
+        // Visual text bar graph of 13-channel congestion to Serial Console
+        Serial.println(F("\n[Monitor] 2.4 GHz RF Channel Congestion (1s dwell):"));
+        const uint8_t max_bar_width = 24;
+        uint32_t bar_scale = (max_pkts > 0) ? max_pkts : 1;
+        for (uint8_t ch = 1; ch <= 13; ch++) {
+            uint32_t pkts = metrics.wifi_channels[ch];
+            uint8_t bar_len = (pkts * max_bar_width) / bar_scale;
+            if (pkts > 0 && bar_len == 0) bar_len = 1;
+            char bar[max_bar_width + 1];
+            for (uint8_t b = 0; b < max_bar_width; b++) {
+                bar[b] = (b < bar_len) ? '#' : ' ';
+            }
+            bar[max_bar_width] = '\0';
+            Serial.printf("  CH %2d [%s] %4lu pkts/s%s\n",
+                          ch, bar, (unsigned long)pkts,
+                          (ch == busiest_ch && pkts > 0) ? " *" : "");
+        }
+        Serial.printf("[Monitor] RF Scan complete: Busiest CH %d (%lu pkts/s), BLE Devices: %lu\n\n",
                       busiest_ch, (unsigned long)max_pkts, (unsigned long)metrics.ble_unique_count);
 
         return metrics;
