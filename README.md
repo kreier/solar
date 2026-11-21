@@ -114,18 +114,18 @@ pio device monitor
 ```bash
 cd worker
 npm install
-npx wrangler d1 create solar-db
-npx wrangler d1 execute solar-db --file=migrations/0001_initial_schema.sql
+wrangler d1 create solar-db
+wrangler d1 execute solar-db --file=migrations/0001_initial_schema.sql
 ```
 
 ### 2. Configure Secrets
 ```bash
-npx wrangler secret put MASTER_PHRASE
+wrangler secret put MASTER_PHRASE
 ```
 
 ### 3. Deploy Worker
 ```bash
-npx wrangler deploy
+wrangler deploy
 ```
 
 ---

@@ -231,10 +231,11 @@ pio run
 ```
 
 ### Cloudflare Worker Deployment
+Use the globally installed WSL `wrangler` binary directly (pre-authenticated with active profile `personal`). Avoid invoking `npx wrangler`, which may attempt to launch an interactive browser OAuth callback:
 ```bash
 cd worker
 npm install
-npx wrangler d1 execute solar-db --file=migrations/0001_initial_schema.sql
-npx wrangler secret put MASTER_PHRASE
-npx wrangler deploy
+wrangler d1 execute solar-db --file=migrations/0001_initial_schema.sql
+wrangler secret put MASTER_PHRASE
+wrangler deploy
 ```
