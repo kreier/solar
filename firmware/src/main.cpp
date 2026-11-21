@@ -102,6 +102,16 @@ bool connectToWiFi() {
 
     WiFi.mode(WIFI_STA);
 
+    // Set regulatory domain to allow channels 1..13 (Vietnam / Worldwide)
+    wifi_country_t country = {
+        .cc = "VN",
+        .schan = 1,
+        .nchan = 13,
+        .max_tx_power = 20,
+        .policy = WIFI_COUNTRY_POLICY_MANUAL
+    };
+    esp_wifi_set_country(&country);
+
     // Apply fixed IP if configured
     if (config.use_static_ip && strlen(config.static_ip) > 0) {
         IPAddress ip, gw, sn, dns;

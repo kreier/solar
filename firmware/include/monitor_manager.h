@@ -35,6 +35,16 @@ public:
         WiFi.mode(WIFI_STA);
         esp_wifi_start();
 
+        // Enable full channels 1..13 (Vietnam / Worldwide regulatory domain)
+        wifi_country_t country = {
+            .cc = "VN",
+            .schan = 1,
+            .nchan = 13,
+            .max_tx_power = 20,
+            .policy = WIFI_COUNTRY_POLICY_MANUAL
+        };
+        esp_wifi_set_country(&country);
+
         esp_wifi_set_promiscuous_rx_cb(&wifi_promiscuous_rx_cb);
         esp_wifi_set_promiscuous(true);
 
