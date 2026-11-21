@@ -225,7 +225,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
     .heatmap-container {
       position: relative;
       width: 100%;
-      height: 520px;
+      height: 560px;
       background: #0d1117;
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -511,13 +511,18 @@ export function renderDashboardHtml(workerUrl?: string): string {
         <span>⚡ INA3221 Precision Current &amp; Power Monitor (I2C 0x40)</span>
         <span class="badge badge-purple">Hardware Monitor</span>
       </div>
-      <div class="cards-grid" style="margin-top:0.75rem;margin-bottom:0;">
-        <div style="background:#0d1117;padding:0.85rem;border-radius:6px;border:1px solid var(--border);">
+      <div class="cards-grid" style="margin-top:0.75rem;margin-bottom:0;" id="ina3221-grid">
+        <div style="background:#0d1117;padding:0.85rem;border-radius:6px;border:1px solid var(--border);" id="ina-ch1-box">
           <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;">CH1 Solar Panel Input</div>
           <div style="font-size:1.35rem;font-weight:700;color:var(--solar);" id="ina-solar-pwr">-- mW</div>
           <div style="font-size:0.8rem;color:var(--text-muted);" id="ina-solar-details">-- V &bull; -- mA</div>
         </div>
-        <div style="background:#0d1117;padding:0.85rem;border-radius:6px;border:1px solid var(--border);">
+        <div style="background:#0d1117;padding:0.85rem;border-radius:6px;border:1px solid var(--border);display:none;" id="ina-ch2-box">
+          <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;">CH2 Battery / Aux</div>
+          <div style="font-size:1.35rem;font-weight:700;color:var(--battery);" id="ina-ch2-pwr">-- mW</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);" id="ina-ch2-details">-- V &bull; -- mA</div>
+        </div>
+        <div style="background:#0d1117;padding:0.85rem;border-radius:6px;border:1px solid var(--border);" id="ina-ch3-box">
           <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;">CH3 Connected Load</div>
           <div style="font-size:1.35rem;font-weight:700;color:var(--timing);" id="ina-load-pwr">-- mW</div>
           <div style="font-size:0.8rem;color:var(--text-muted);" id="ina-load-details">-- V &bull; -- mA &bull; Res: -- &Omega;</div>
@@ -1572,7 +1577,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         }
       }
 
-      // Check for INA3221 Telemetry in raw payload
+      // Check for INA3221 Telemetry in raw payload (CH1, CH2, CH3)
       const inaCard = document.getElementById("ina3221-card");
       let hasIna = false;
       if (latest && latest.raw_payload) {
@@ -1583,19 +1588,57 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
             hasIna = true;
             if (inaCard) {
               inaCard.style.display = "block";
-              if (ina.ch1_solar) {
+
+              // Channel 1: Solar Panel
+              const ch1 = ina.ch1_solar || ina.ch1;
+              const ch1Box = document.getElementById("ina-ch1-box");
+              if (ch1 && ch1Box) {
+                ch1Box.style.display = "block";
+                const pwr = (ch1.power_mw !== undefined) ? ch1.power_mw : ((ch1.voltage_v || 0) * (ch1.current_ma || 0));
+                const v = ch1.voltage_v || 0;
+                const ma = ch1.current_ma || 0;
                 const elPwr = document.getElementById("ina-solar-pwr");
                 const elDet = document.getElementById("ina-solar-details");
-                if (elPwr) elPwr.textContent = (ina.ch1_solar.power_mw || 0).toFixed(1) + " mW";
-                if (elDet) elDet.textContent =
-                  \`\${(ina.ch1_solar.voltage_v || 0).toFixed(2)} V • \${(ina.ch1_solar.current_ma || 0).toFixed(1)} mA\`;
+                if (elPwr) elPwr.textContent = pwr.toFixed(1) + " mW";
+                if (elDet) elDet.textContent = \`\${v.toFixed(2)} V • \${ma.toFixed(1)} mA\`;
+              } else if (ch1Box) {
+                ch1Box.style.display = "none";
               }
-              if (ina.ch3_load) {
+
+              // Channel 2: Battery / Aux (shown whenever CH2 data is submitted)
+              const ch2 = ina.ch2_battery || ina.ch2_bat || ina.ch2_lipo || ina.ch2_aux || ina.ch2 || ina.ch2_load;
+              const ch2Box = document.getElementById("ina-ch2-box");
+              if (ch2Box) {
+                if (ch2) {
+                  ch2Box.style.display = "block";
+                  const pwr = (ch2.power_mw !== undefined) ? ch2.power_mw : ((ch2.voltage_v || 0) * (ch2.current_ma || 0));
+                  const v = ch2.voltage_v || 0;
+                  const ma = ch2.current_ma || 0;
+                  const res = (ch2.resistance_ohm && ch2.resistance_ohm > 0) ? \` • Res: \${ch2.resistance_ohm.toFixed(1)} Ω\` : "";
+                  const elPwr = document.getElementById("ina-ch2-pwr");
+                  const elDet = document.getElementById("ina-ch2-details");
+                  if (elPwr) elPwr.textContent = pwr.toFixed(1) + " mW";
+                  if (elDet) elDet.textContent = \`\${v.toFixed(2)} V • \${ma.toFixed(1)} mA\${res}\`;
+                } else {
+                  ch2Box.style.display = "none";
+                }
+              }
+
+              // Channel 3: Connected Load
+              const ch3 = ina.ch3_load || ina.ch3;
+              const ch3Box = document.getElementById("ina-ch3-box");
+              if (ch3 && ch3Box) {
+                ch3Box.style.display = "block";
+                const pwr = (ch3.power_mw !== undefined) ? ch3.power_mw : ((ch3.voltage_v || 0) * (ch3.current_ma || 0));
+                const v = ch3.voltage_v || 0;
+                const ma = ch3.current_ma || 0;
+                const res = (ch3.resistance_ohm && ch3.resistance_ohm > 0) ? \` • Res: \${ch3.resistance_ohm.toFixed(1)} Ω\` : "";
                 const elPwr = document.getElementById("ina-load-pwr");
                 const elDet = document.getElementById("ina-load-details");
-                if (elPwr) elPwr.textContent = (ina.ch3_load.power_mw || 0).toFixed(1) + " mW";
-                if (elDet) elDet.textContent =
-                  \`\${(ina.ch3_load.voltage_v || 0).toFixed(2)} V • \${(ina.ch3_load.current_ma || 0).toFixed(1)} mA • Res: \${(ina.ch3_load.resistance_ohm || 0).toFixed(1)} Ω\`;
+                if (elPwr) elPwr.textContent = pwr.toFixed(1) + " mW";
+                if (elDet) elDet.textContent = \`\${v.toFixed(2)} V • \${ma.toFixed(1)} mA\${res}\`;
+              } else if (ch3Box) {
+                ch3Box.style.display = "none";
               }
             }
           }
@@ -2428,7 +2471,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const dayLabels = [];
       for (let d = 6; d >= 0; d--) {
         const dDate = new Date(todayMidnight - d * 86400 * 1000);
-        const dayStr = (d === 0) ? "Today" : ((d === 1) ? "Yest" : dDate.toLocaleDateString([], { weekday: "short" }));
+        const dayStr = dDate.toLocaleDateString([], { weekday: "short" });
         dayLabels.push({
           dateMs: dDate.getTime(),
           label: dayStr,
@@ -2449,7 +2492,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const dl = dayLabels[i];
         rowMeta.push({
           group: 1,
-          label: \`WF \${dl.label}\`,
+          label: dl.label,
           title: \`Peak Wi-Fi Activity — \${dl.label} (\${dl.fullDate})\`,
           dayIndex: i,
           dateMs: dl.dateMs,
@@ -2462,7 +2505,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const dl = dayLabels[i];
         rowMeta.push({
           group: 2,
-          label: \`BL \${dl.label}\`,
+          label: dl.label,
           title: \`BLE Unique Devices — \${dl.label} (\${dl.fullDate})\`,
           dayIndex: i,
           dateMs: dl.dateMs,
@@ -2602,7 +2645,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       // Render to Canvas
       const dpr = window.devicePixelRatio || 1;
       const width = container.clientWidth || 800;
-      const height = 520;
+      const height = 560;
 
       canvas.width = width * dpr;
       canvas.height = height * dpr;
@@ -2617,8 +2660,9 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       ctx.fillRect(0, 0, width, height);
 
       const margin = { left: 54, right: 16, top: 22, bottom: 26 };
-      const groupDivider = 7; // Gap between groups
-      const totalDividers = 2 * groupDivider;
+      const bleDivider = 8; // Distance between 13 channels and BLE
+      const groupDivider = 22; // Gap before 7-day groups (lowered by one line for headings)
+      const totalDividers = bleDivider + 2 * groupDivider;
       const plotWidth = width - margin.left - margin.right;
       const plotHeight = height - margin.top - margin.bottom - totalDividers;
 
@@ -2631,7 +2675,9 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const rowYPositions = [];
       let currentY = margin.top;
       for (let r = 0; r < numRows; r++) {
-        if (r === 14 || r === 21) {
+        if (r === 13) {
+          currentY += bleDivider;
+        } else if (r === 14 || r === 21) {
           currentY += groupDivider;
         }
         rowYPositions[r] = currentY;
@@ -2665,10 +2711,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       ctx.fillText("2.4 GHz SPECTRUM (TODAY)", margin.left, margin.top - 5);
 
       ctx.fillStyle = "#f59e0b";
-      ctx.fillText("WI-FI PEAK ACTIVITY (LAST 7 DAYS)", margin.left, rowYPositions[14] - 3);
+      ctx.fillText("WI-FI PEAK ACTIVITY (LAST 7 DAYS)", margin.left, rowYPositions[14] - 6);
 
       ctx.fillStyle = "#38bdf8";
-      ctx.fillText("BLE DEVICE DENSITY (LAST 7 DAYS)", margin.left, rowYPositions[21] - 3);
+      ctx.fillText("BLE DEVICE DENSITY (LAST 7 DAYS)", margin.left, rowYPositions[21] - 6);
 
       // Draw Grid Cells
       for (let c = 0; c < numCols; c++) {

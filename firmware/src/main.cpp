@@ -22,6 +22,7 @@
 // RTC Memory Preserved across Deep Sleep
 RTC_DATA_ATTR CycleBenchmark rtc_prev_cycle = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false};
 RTC_DATA_ATTR int rtc_boot_count = 0;
+RTC_DATA_ATTR int rtc_upload_count = 0;
 RTC_DATA_ATTR BufferedSample rtc_samples[6];
 RTC_DATA_ATTR uint8_t rtc_sample_count = 0;
 RTC_DATA_ATTR uint8_t rtc_bssid[6] = {0};
@@ -431,13 +432,14 @@ void runCycle() {
                                       (config.power_mode == 0) ? rtc_sample_count : 0,
                                       (config.power_mode == 3) ? &monitorMetrics : nullptr);
 
-            // OTA Check: Daily (every 144 cycles / 24h) in Low Power; Hourly (every 6 uploads = 60m) in Active/Verbose/Monitor
+            // OTA Check: Daily (every 24 uploads = 24h) in Low Power; Hourly (every 6 uploads = 60m) in Active/Verbose/Monitor
+            rtc_upload_count++;
             bool doOta = (config.power_mode == 0)
-                ? ((timer.getBootCount() % 144) == 1)
-                : ((timer.getBootCount() % 6) == 1 || timer.getBootCount() <= 2);
+                ? ((rtc_upload_count % 24) == 1 || rtc_upload_count <= 1)
+                : ((rtc_upload_count % 6) == 1 || rtc_upload_count <= 1);
 
             if (doOta) {
-                Serial.println(F("[OTA] Checking for firmware update..."));
+                Serial.printf("[OTA] Checking for firmware update (Upload #%d)...\n", rtc_upload_count);
                 OtaManager::checkForUpdate(config, configMgr, FIRMWARE_VERSION);
             }
         } else {
