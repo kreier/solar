@@ -325,7 +325,13 @@ void runCycle() {
             rtc_samples[rtc_sample_count].solar_mv   = readings.solar_mv;
             rtc_samples[rtc_sample_count].lipo_mv    = readings.lipo_mv;
             rtc_samples[rtc_sample_count].temp_c     = readings.temp_c;
-            rtc_samples[rtc_sample_count].power_mw   = inaData.present ? inaData.ch1_solar_mw : 0.0f;
+            float sample_pwr = 0.0f;
+            if (inaData.present) {
+                sample_pwr = inaData.ch1_solar_mw;
+            } else if (config.static_load_ohm > 0.0f && readings.solar_v > 0.0f) {
+                sample_pwr = (readings.solar_v * readings.solar_v / config.static_load_ohm) * 1000.0f;
+            }
+            rtc_samples[rtc_sample_count].power_mw   = sample_pwr;
             rtc_samples[rtc_sample_count].has_ina    = inaData.present;
             if (inaData.present) {
                 rtc_samples[rtc_sample_count].ch1_solar_v      = inaData.ch1_solar_v;

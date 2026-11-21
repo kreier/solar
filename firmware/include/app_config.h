@@ -74,6 +74,10 @@ struct SolarConfig {
     float cal_solar_factor;
     float cal_lipo_factor;
 
+    // Static / Ohmic load connected across solar panel (Ohms)
+    // Used to derive solar power (P = V^2 / R) when no INA3221 is installed. Default 48.0 Ohm (e.g. 2x 24 Ohm series)
+    float static_load_ohm;
+
     // Power saving and operational modes
     // 0: Minimal Energy Consumption (Deep Sleep, 10-min measure to RTC, 1-hour batch upload, fast BSSID)
     // 1: Balanced Mode (Light/Deep Sleep, 10-min measure & immediate upload)
@@ -149,6 +153,7 @@ public:
         config.cal_temp_factor  = prefs.getFloat("c_tmp_f", DEFAULT_CAL_TEMP_FACTOR);
         config.cal_solar_factor = prefs.getFloat("c_sol_f", DEFAULT_CAL_SOLAR_FACTOR);
         config.cal_lipo_factor  = prefs.getFloat("c_lip_f", DEFAULT_CAL_LIPO_FACTOR);
+        config.static_load_ohm  = prefs.getFloat("load_r", 48.0f); // Default 48.0 Ohm (2x 24 Ohm series)
 
         config.power_mode = prefs.getUChar("pwr_mod", 0); // Default to minimal energy consumption
         config.is_canary   = prefs.getBool("is_can", false);
@@ -192,6 +197,7 @@ public:
         config.cal_temp_factor  = DEFAULT_CAL_TEMP_FACTOR;
         config.cal_solar_factor = DEFAULT_CAL_SOLAR_FACTOR;
         config.cal_lipo_factor  = DEFAULT_CAL_LIPO_FACTOR;
+        config.static_load_ohm  = 48.0f; // Preset 48 Ohm for solar ohmic load
 
         config.power_mode = 0; // Minimal Energy
         config.is_canary = false;
@@ -244,6 +250,7 @@ public:
         prefs.putFloat("c_tmp_f", config.cal_temp_factor);
         prefs.putFloat("c_sol_f", config.cal_solar_factor);
         prefs.putFloat("c_lip_f", config.cal_lipo_factor);
+        prefs.putFloat("load_r", config.static_load_ohm);
 
         prefs.putUChar("pwr_mod", config.power_mode);
         prefs.putBool("is_can", config.is_canary);

@@ -853,7 +853,8 @@ export function renderDashboardHtml(workerUrl?: string): string {
               <div>
                 <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Firmware Version:</label>
                 <select id="otaFwSelect" style="width:100%;font-size:0.82rem;padding:0.4rem;background:#0d1117;color:#f0f6fc;border:1px solid #30363d;border-radius:6px;">
-                  <option value="1.1.8-canary" selected>v1.1.8 Canary (Latest)</option>
+                  <option value="1.1.9-canary" selected>v1.1.9 Canary (Latest: CH 12-13 VN, 48Ω Load)</option>
+                  <option value="1.1.8-canary">v1.1.8 Canary (Latest)</option>
                   <option value="1.1.7-canary">v1.1.7 Canary</option>
                   <option value="1.1.6-canary">v1.1.6 Canary</option>
                   <option value="1.1.5">v1.1.5 Stable</option>
@@ -918,7 +919,8 @@ export function renderDashboardHtml(workerUrl?: string): string {
             <div>
               <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;color:var(--text-muted);">Firmware Release Channel:</label>
               <select id="flasherVerSelect" style="width:100%;" onchange="updateFlasherManifest()">
-                <option value="1.1.8-canary" selected>v1.1.8 Canary (Robust Multi-Manifest, Non-Destructive Update, Coredump Partition)</option>
+                <option value="1.1.9-canary" selected>v1.1.9 Canary (Channels 12-13 VN Wi-Fi, 48Ω Static Ohmic Power)</option>
+                <option value="1.1.8-canary">v1.1.8 Canary (Robust Multi-Manifest, Non-Destructive Update, Coredump Partition)</option>
                 <option value="1.1.7-canary">v1.1.7 Canary (INA3221 CH2, Solar Power Telemetry, LiPo Autonomy Analytics)</option>
                 <option value="1.1.6-canary">v1.1.6 Canary (S3 USB Update Bootloader, Soft-AP Verbose, Phy My Hung)</option>
                 <option value="1.1.5">v1.1.5 Stable (Production: Reset OTA, Auto-scale, INA3221 3-CH)</option>

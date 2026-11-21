@@ -199,6 +199,7 @@ public:
             html += F("<div class='row'>");
             html += "<div><label>Solar Pin</label><input type='number' name='pin_solar' value='" + String(config.pin_solar) + "'></div>";
             html += "<div><label>Solar Factor (Divider x2)</label><input type='text' name='c_sol_f' value='" + String(config.cal_solar_factor, 2) + "' placeholder='2.00'></div>";
+            html += "<div><label>Static Load R (Ohms)</label><input type='text' name='load_r' value='" + String(config.static_load_ohm, 1) + "' placeholder='48.0'></div>";
             html += F("</div>");
 
             // LiPo Voltage
@@ -360,6 +361,7 @@ public:
             if (server.hasArg("c_tmp_f")) config.cal_temp_factor = server.arg("c_tmp_f").toFloat();
             if (server.hasArg("c_sol_f")) config.cal_solar_factor = server.arg("c_sol_f").toFloat();
             if (server.hasArg("c_lip_f")) config.cal_lipo_factor = server.arg("c_lip_f").toFloat();
+            if (server.hasArg("load_r")) config.static_load_ohm = server.arg("load_r").toFloat();
 
             config.power_mode = server.hasArg("power_mode") ? server.arg("power_mode").toInt() : 0;
             config.is_canary = server.hasArg("is_canary");

@@ -232,7 +232,12 @@ public:
         doc["lipo_v"]   = readings.lipo_v;
         doc["temp_c"]   = readings.temp_c;
         doc["temp_mv"]  = readings.temp_mv;
-        float power_mw  = inaReadings.present ? inaReadings.ch1_solar_mw : 0.0f;
+        float power_mw = 0.0f;
+        if (inaReadings.present) {
+            power_mw = inaReadings.ch1_solar_mw;
+        } else if (config.static_load_ohm > 0.0f && readings.solar_v > 0.0f) {
+            power_mw = (readings.solar_v * readings.solar_v / config.static_load_ohm) * 1000.0f;
+        }
         doc["power_mw"] = serialized(String(power_mw, 2));
 
         // Raw ADC samples
