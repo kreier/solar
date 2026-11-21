@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5] - 2026-11-21
+
+### Added & Changed
+- **Immediate Telemetry & Firmware Verification on Reset**:
+  - Waking from a cold reset triggers an immediate Wi-Fi connect and telemetry upload cycle (`isInitialCycle`), sending live sensor data to Cloudflare D1 edge storage without waiting for the 10-minute accumulation period.
+  - Station executes an immediate OTA update check during the post-reset cycle, installing new firmware (or canary builds if opted in) right after reboot.
+- **Mode 3 (Monitor Mode) Continuous Diagnostic Telemetry**:
+  - Mode 3 outputs sensor readings, voltages, and conversion benchmarks over serial every 1 minute in addition to Mode 2 (Verbose).
+- **Web Serial Flasher Invalid Header Fix (Dual 4MB Partitions & ESP32-S3)**:
+  - Added `boot_app0.bin` at offset `0xe000` (`57344`) to update manifests (`manifest-update.json` and `manifest-canary-update.json`).
+  - When flashing updates via Web Serial, `otadata` is pointed directly to `app0` (`0x10000`) while preserving NVS configuration, eliminating the `invalid header 0xffffff` boot loop on ESP32-S3 and other dual-partition setups.
+- **Dynamic Chart Auto-Scaling**:
+  - 3-Day Diurnal Overlay chart auto-scales solar voltage dynamically (5V baseline for standard nodes, ~7–8V for higher-voltage stations like S3).
+  - Enclosure temperature Y-axis auto-scales relative to measured data across the 3-day window rather than using a static 75°C upper ceiling.
+  - Continuous Telemetry Timeline (Last 3 Days) dual Y-axes also auto-scale dynamically for both voltage and temperature.
+- **Web UI Header Uptime & Telemetry Metrics**:
+  - Added station uptime calculation (in days and hours) and telemetry points counter displayed under station name and location in the header.
+  - Web Firmware Installer dialog header badge dynamically displays the selected release channel and board (`v1.1.5 Stable`, `v1.1.5 Canary`).
+  - Added responsive display for all three INA3221 channels (CH1 Solar, CH2 Battery/Aux, CH3 Load).
+  - Refined RF heatmap spacing with distance between 13 channels and BLE, lowered 7-day overview headings by one line, and streamlined row labels to clean weekday names (`Sun`, `Mon`, `Tue`...).
+- **Documentation & Releases**:
+  - Linked ADR 0006 in `README.md` and updated `AGENTS.md`.
+  - Published GitHub releases for v1.1.3, v1.1.4, and v1.1.5.
+
 ## [1.1.4] - 2026-11-21
 
 ### Added & Changed

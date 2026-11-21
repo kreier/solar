@@ -48,7 +48,7 @@ build_target() {
         "$ota_offset" "$app_bin"
 
     # Create unversioned convenience links
-    if [ "$ver" = "1.1.4" ]; then
+    if [ "$ver" = "1.1.5" ]; then
         cp "$dest_app" "$OUT_DIR/firmware-${chip}.bin"
         cp "$dest_merged" "$OUT_DIR/firmware-${chip}-merged.bin"
         if [ "$chip" = "esp32" ]; then
@@ -62,22 +62,22 @@ build_target() {
 }
 
 echo "=========================================="
-echo " BUILDING FIRMWARE v1.1.4 (STABLE)"
+echo " BUILDING FIRMWARE v1.1.5 (STABLE)"
 echo "=========================================="
-build_target "esp32dev" "esp32" "1.1.4" 0x10000 0x1000
-build_target "esp32s3" "esp32s3" "1.1.4" 0x10000 0x0
-build_target "esp32c5" "esp32c6" "1.1.4" 0x10000 0x0
+build_target "esp32dev" "esp32" "1.1.5" 0x10000 0x1000
+build_target "esp32s3" "esp32s3" "1.1.5" 0x10000 0x0
+build_target "esp32c5" "esp32c6" "1.1.5" 0x10000 0x0
 
-# Create C5 convenience aliases for 1.1.4
-cp "$OUT_DIR/firmware-esp32c6-v1.1.4.bin" "$OUT_DIR/firmware-esp32c5-v1.1.4.bin"
-cp "$OUT_DIR/firmware-esp32c6-merged-v1.1.4.bin" "$OUT_DIR/firmware-esp32c5-merged-v1.1.4.bin"
-cp "$OUT_DIR/firmware-esp32c5-v1.1.4.bin" "$OUT_DIR/firmware-esp32c5.bin"
-cp "$OUT_DIR/firmware-esp32c5-merged-v1.1.4.bin" "$OUT_DIR/firmware-esp32c5-merged.bin"
+# Create C5 convenience aliases for 1.1.5
+cp "$OUT_DIR/firmware-esp32c6-v1.1.5.bin" "$OUT_DIR/firmware-esp32c5-v1.1.5.bin"
+cp "$OUT_DIR/firmware-esp32c6-merged-v1.1.5.bin" "$OUT_DIR/firmware-esp32c5-merged-v1.1.5.bin"
+cp "$OUT_DIR/firmware-esp32c5-v1.1.5.bin" "$OUT_DIR/firmware-esp32c5.bin"
+cp "$OUT_DIR/firmware-esp32c5-merged-v1.1.5.bin" "$OUT_DIR/firmware-esp32c5-merged.bin"
 
 # Mirror to canary channel aliases
 for ch in esp32 esp32s3 esp32c5 esp32c6; do
-    cp "$OUT_DIR/firmware-${ch}-v1.1.4.bin" "$OUT_DIR/firmware-${ch}-v1.1.4-canary.bin"
-    cp "$OUT_DIR/firmware-${ch}-merged-v1.1.4.bin" "$OUT_DIR/firmware-${ch}-merged-v1.1.4-canary.bin"
+    cp "$OUT_DIR/firmware-${ch}-v1.1.5.bin" "$OUT_DIR/firmware-${ch}-v1.1.5-canary.bin"
+    cp "$OUT_DIR/firmware-${ch}-merged-v1.1.5.bin" "$OUT_DIR/firmware-${ch}-merged-v1.1.5-canary.bin"
 done
 
 echo "=========================================="

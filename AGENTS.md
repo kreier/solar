@@ -55,13 +55,14 @@ kreier/solar/
 ├── docs/
 │   ├── index.html                 # 3-Day 0:00-24:00 overlay & telemetry dashboard
 │   ├── 404.html                   # SPA routing fallback
-│   └── adr/                       # Architectural Decision Records (ADRs 0001–0005)
+│   └── adr/                       # Architectural Decision Records (ADRs 0001–0006)
 │       ├── README.md
 │       ├── 0001-cloudflare-d1-edge-storage.md
 │       ├── 0002-zero-trust-bootstrap-provisioning.md
 │       ├── 0003-esp32-adc-nonlinearity-calibration.md
 │       ├── 0004-light-sleep-cadence-and-cycle-benchmarking.md
-│       └── 0005-minimal-spiffs-and-dual-ota-partitioning.md
+│       ├── 0005-minimal-spiffs-and-dual-ota-partitioning.md
+│       └── 0006-four-tier-station-power-and-monitoring-modes.md
 ├── firmware/
 │   ├── platformio.ini             # Unified PlatformIO build configuration (ESP32, ESP32-S3, ESP32-C5)
 │   ├── partitions/

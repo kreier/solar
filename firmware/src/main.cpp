@@ -12,7 +12,7 @@
 #include "monitor_manager.h"
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.1.3-canary"
+#define FIRMWARE_VERSION "1.1.5"
 #endif
 
 #ifndef TARGET_BOARD
@@ -243,12 +243,13 @@ void runCycle() {
     };
     const char *modeStr = (config.power_mode <= 3) ? modeNames[config.power_mode] : "Custom";
 
-    bool isVerbose = (config.power_mode == 2 || config.power_mode == 0 || active_sample_count == 0);
+    bool isInitialCycle = (timer.getBootCount() == 1 || rtc_upload_count == 0);
+    bool isVerbose = (config.power_mode == 2 || config.power_mode == 3 || config.power_mode == 0 || active_sample_count == 0 || isInitialCycle);
 
     if (isVerbose) {
         Serial.println(F("\n--------------------------------------------------"));
-        Serial.printf("[Cycle #%d] Starting measurement cycle (Mode: %s)\n",
-                      timer.getBootCount(), modeStr);
+        Serial.printf("[Cycle #%d] Starting measurement cycle (Mode: %s%s)\n",
+                      timer.getBootCount(), modeStr, isInitialCycle ? " - Reset Initial" : "");
         Serial.println(F("--------------------------------------------------"));
     }
 
@@ -322,15 +323,19 @@ void runCycle() {
             rtc_sample_count++;
         }
 
-        // If fewer than 6 samples accumulated (1 hour not reached), enter Deep Sleep immediately
-        if (rtc_sample_count < 6) {
+        // If fewer than 6 samples accumulated and not initial cycle after reset, enter Deep Sleep immediately
+        if (rtc_sample_count < 6 && !isInitialCycle) {
             Serial.printf("[Power] Low Power: Sample #%d/6 recorded in RTC memory. Entering DEEP SLEEP (10m)...\n", rtc_sample_count);
             timer.finalizeAndSaveForNextCycle();
             SleepManager::enterDeepSleep(600);
             return;
         }
 
-        Serial.println(F("[Power] Low Power: 1-Hour accumulation reached (6 samples in RTC). Initiating batch upload..."));
+        if (isInitialCycle) {
+            Serial.println(F("[Power] Low Power: Initial reset cycle, transmitting immediate telemetry..."));
+        } else {
+            Serial.println(F("[Power] Low Power: 1-Hour accumulation reached (6 samples in RTC). Initiating batch upload..."));
+        }
     }
 
     // Categories 2, 3, 4: Active (1), Verbose (2), Monitor (3)
@@ -350,10 +355,11 @@ void runCycle() {
             active_ch3_res_sum += inaData.ch3_load_res_ohm;
         }
 
-        // If fewer than 10 samples (10 minutes not reached), return to Light Sleep
-        if (active_sample_count < 10) {
-            if (config.power_mode == 2) {
-                Serial.printf("[Power] Verbose: Sample #%d/10 recorded (Temp: %.1fC, Sol: %dmV, Bat: %dmV). Sleeping 60s...\n",
+        // If fewer than 10 samples (10 minutes not reached) and not initial cycle after reset, return to Light Sleep
+        if (active_sample_count < 10 && !isInitialCycle) {
+            if (config.power_mode == 2 || config.power_mode == 3) {
+                Serial.printf("[Power] %s: Sample #%d/10 recorded (Temp: %.1fC, Sol: %dmV, Bat: %dmV). Sleeping 60s...\n",
+                              (config.power_mode == 3) ? "Monitor" : "Verbose",
                               active_sample_count, readings.temp_c, readings.solar_mv, readings.lipo_mv);
             }
             timer.finalizeAndSaveForNextCycle();
@@ -361,9 +367,13 @@ void runCycle() {
             return;
         }
 
-        // 10 samples reached: calculate average for the 10-minute slot
-        Serial.printf("[Power] %s: 10-minute average computed (%d samples). Initiating telemetry upload...\n",
-                      modeStr, active_sample_count);
+        // 10 samples reached (or initial reset cycle): calculate average
+        if (isInitialCycle) {
+            Serial.println(F("[Power] Post-reset initial cycle: Submitting current telemetry immediately..."));
+        } else {
+            Serial.printf("[Power] %s: 10-minute average computed (%d samples). Initiating telemetry upload...\n",
+                          modeStr, active_sample_count);
+        }
 
         readings.temp_c = active_temp_sum / (float)active_sample_count;
         readings.temp_mv = static_cast<int>(readings.temp_c * 10.0f);
@@ -432,14 +442,16 @@ void runCycle() {
                                       (config.power_mode == 0) ? rtc_sample_count : 0,
                                       (config.power_mode == 3) ? &monitorMetrics : nullptr);
 
-            // OTA Check: Daily (every 24 uploads = 24h) in Low Power; Hourly (every 6 uploads = 60m) in Active/Verbose/Monitor
+            // OTA Check: Immediately after reset, daily in Low Power (every 24 uploads = 24h), hourly in Active/Verbose/Monitor (every 6 uploads = 60m)
             rtc_upload_count++;
-            bool doOta = (config.power_mode == 0)
-                ? ((rtc_upload_count % 24) == 1 || rtc_upload_count <= 1)
-                : ((rtc_upload_count % 6) == 1 || rtc_upload_count <= 1);
+            bool doOta = isInitialCycle ||
+                (config.power_mode == 0
+                    ? ((rtc_upload_count % 24) == 1)
+                    : ((rtc_upload_count % 6) == 1));
 
             if (doOta) {
-                Serial.printf("[OTA] Checking for firmware update (Upload #%d)...\n", rtc_upload_count);
+                Serial.printf("[OTA] Checking for firmware update (Upload #%d, Initial: %d)...\n",
+                              rtc_upload_count, isInitialCycle ? 1 : 0);
                 OtaManager::checkForUpdate(config, configMgr, FIRMWARE_VERSION);
             }
         } else {

@@ -4,7 +4,7 @@ Edge-native telemetry fleet monitoring for ESP32 microcontrollers measuring sola
 
 [![Build Firmware CI](https://github.com/kreier/solar/actions/workflows/build-firmware.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/build-firmware.yml)
 [![Deploy GitHub Pages](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml)
-[![Firmware](https://img.shields.io/badge/firmware-v1.1.4-blue.svg)](firmware/)
+[![Firmware](https://img.shields.io/badge/firmware-v1.1.5-blue.svg)](firmware/)
 [![Boards](https://img.shields.io/badge/boards-ESP32%20%7C%20ESP32--S3%20%7C%20ESP32--C5-orange.svg)](firmware/)
 [![ADRs](https://img.shields.io/badge/docs-ADRs%20(6)-success.svg)](docs/adr/)
 
@@ -69,9 +69,10 @@ Edge-native telemetry fleet monitoring for ESP32 microcontrollers measuring sola
    - Automatic daily OTA update check (every 144 cycles / 24 hours, plus on boot cycle #1) and serial command `OTA`.
    - Seamless Over-The-Air firmware updates delivered via Cloudflare Worker.
 6. **Multi-Day 0:00 to 24:00 Web Dashboard**:
-   - Dynamic header displaying Station Name, Location, and running Firmware Version (`v1.0.2`).
-   - Daily comparison overlays for the last 3 days showing diurnal curves for solar power, battery charging, and temperature.
-   - Continuous 72-hour timeline and stacked execution latency benchmarks.
+   - Dynamic header displaying Station Name, Location, Uptime (days and hours), Telemetry Count, and running Firmware Version (`v1.1.5`).
+   - Daily comparison overlays for the last 3 days showing diurnal curves for solar power, battery charging, and temperature with dynamic auto-scaling.
+   - Continuous 72-hour timeline with auto-scaled dual Y-axes and stacked execution latency benchmarks.
+   - Multi-channel INA3221 telemetry support (Solar, Battery/Aux, Load) and interactive RF/BLE environment monitor.
 7. **Web Serial Firmware Installer**:
    - Built into both the Cloudflare Worker and GitHub Pages sites.
    - **Full Firmware / Clean Install**: Flashes bootloader, partition table, boot_app0, and app with erase device prompt.
@@ -140,6 +141,7 @@ This repository is maintained with agentic AI workflows. Detailed architectural 
 - [ADR 0003](docs/adr/0003-esp32-adc-nonlinearity-calibration.md): ESP32 ADC Calibration & 100x Multisampling.
 - [ADR 0004](docs/adr/0004-light-sleep-cadence-and-cycle-benchmarking.md): 10-Minute Light Sleep & Cycle Benchmarking.
 - [ADR 0005](docs/adr/0005-minimal-spiffs-and-dual-ota-partitioning.md): Minimal SPIFFS & Dual OTA Application Slots.
+- [ADR 0006](docs/adr/0006-four-tier-station-power-and-monitoring-modes.md): Four-Tier Station Operational Modes (Low Power, Active, Verbose, Monitor).
 
 ---
 

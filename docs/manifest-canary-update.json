@@ -1,25 +1,28 @@
 {
-  "name": "Solar Telemetry Fleet (v1.1.4-canary Update)",
-  "version": "1.1.4-canary",
+  "name": "Solar Telemetry Fleet (v1.1.5-canary Update)",
+  "version": "1.1.5-canary",
   "funding_url": "https://github.com/kreier/solar",
   "new_install_prompt_erase": false,
   "builds": [
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "firmware/firmware-esp32-v1.1.4-canary.bin", "offset": 65536 }
+        { "path": "firmware/boot_app0.bin", "offset": 57344 },
+        { "path": "firmware/firmware-esp32-v1.1.5-canary.bin", "offset": 65536 }
       ]
     },
     {
       "chipFamily": "ESP32-S3",
       "parts": [
-        { "path": "firmware/firmware-esp32s3-v1.1.4-canary.bin", "offset": 65536 }
+        { "path": "firmware/boot_app0.bin", "offset": 57344 },
+        { "path": "firmware/firmware-esp32s3-v1.1.5-canary.bin", "offset": 65536 }
       ]
     },
     {
       "chipFamily": "ESP32-C6",
       "parts": [
-        { "path": "firmware/firmware-esp32c5-v1.1.4-canary.bin", "offset": 65536 }
+        { "path": "firmware/boot_app0.bin", "offset": 57344 },
+        { "path": "firmware/firmware-esp32c5-v1.1.5-canary.bin", "offset": 65536 }
       ]
     }
   ]

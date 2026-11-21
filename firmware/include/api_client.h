@@ -12,7 +12,7 @@
 #include "monitor_manager.h"
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.1.3-canary"
+#define FIRMWARE_VERSION "1.1.5"
 #endif
 
 struct BufferedSample {

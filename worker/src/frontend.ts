@@ -460,7 +460,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="title-area">
         <h1>
           <span>☀️</span> Solar Telemetry Fleet
-          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.4</span>
+          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.5</span>
         </h1>
         <div class="subtitle" id="station-subtitle">Connecting to Cloudflare D1 Edge Ingestion...</div>
       </div>
@@ -711,9 +711,9 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <p>ESP32 Solar Telemetry Fleet &bull; Minimal SPIFFS &bull; Dual OTA &bull; Cloudflare Edge &amp; D1 Database</p>
       <p>
         <a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull;
-        <span>Website v1.1.4</span> &bull;
-        <span>Firmware v<span id="fw-version">1.1.4</span> (Stable)</span> &bull;
-        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.4 Canary</span> &bull;
+        <span>Website v1.1.5</span> &bull;
+        <span>Firmware v<span id="fw-version">1.1.5</span> (Stable)</span> &bull;
+        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.5 Canary</span> &bull;
         <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a>
       </p>
     </footer>
@@ -725,7 +725,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="modal-header">
         <div class="modal-title">
           <span>⚡ Web Firmware Installer</span>
-          <span class="badge badge-amber" id="modal-ver-badge">v1.0.2 Stable</span>
+          <span class="badge badge-amber" id="modal-ver-badge">v1.1.5 Stable</span>
         </div>
         <button class="modal-close-btn" onclick="closeFlashModal()" title="Close dialog">✕</button>
       </div>
@@ -758,8 +758,9 @@ export function renderDashboardHtml(workerUrl?: string): string {
             <div>
               <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;color:var(--text-muted);">Firmware Release Channel:</label>
               <select id="flasherVerSelect" style="width:100%;" onchange="updateFlasherManifest()">
-                <option value="1.1.4" selected>v1.1.4 Stable (Production: Dynamic Modes, 16MB S3, Settings Auth)</option>
-                <option value="1.1.4-canary">v1.1.4 Canary (Latest edge release)</option>
+                <option value="1.1.5" selected>v1.1.5 Stable (Production: Reset OTA, Auto-scale, INA3221 3-CH)</option>
+                <option value="1.1.5-canary">v1.1.5 Canary (Latest edge release)</option>
+                <option value="1.1.4">v1.1.4 Stable</option>
                 <option value="1.0.2">v1.0.2 Stable (Legacy)</option>
               </select>
             </div>
@@ -1322,6 +1323,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         document.body.style.overflow = "hidden";
       }
       checkSerialSupport();
+      updateFlasherManifest();
     }
 
     function closeFlashModal() {
@@ -1366,7 +1368,8 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       }
       btn.setAttribute("manifest", manifestFile);
 
-      document.getElementById("modal-ver-badge").textContent = \`\${ver} (\${board.toUpperCase()})\`;
+      const channelLabel = ver.includes("canary") ? "Canary" : "Stable";
+      document.getElementById("modal-ver-badge").textContent = \`v\${ver} \${channelLabel} (\${board.toUpperCase()})\`;
       const actBtn = document.getElementById("espActivateBtn");
       if (actBtn) {
         actBtn.textContent = isUpdate ? \`⚡ Connect & Update Firmware (\${board.toUpperCase()})\` : \`⚡ Connect & Flash Full Firmware (\${board.toUpperCase()})\`;
@@ -1428,8 +1431,9 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const mock = loadMockData(7);
         cachedHistory = mock;
         document.getElementById("station-subtitle").innerHTML =
-          "Station: <b>demo</b> • Location: <b>Demo Mode</b> • <span class='badge badge-amber'>Node FW v1.0.2</span> • 1008 demo telemetry points";
-        updateSummaryCards({ station_id: "demo", location: "Demo Mode", firmware_version: "1.0.2" }, mock[mock.length - 1]);
+          "<div>Station: <b>demo</b> • Location: <b>Demo Mode</b> • <span class='badge badge-amber'>Node FW v1.1.5</span></div>" +
+          "<div style='font-size:0.8rem; color:var(--text-muted); margin-top:3px;'>⏱️ Uptime: <b>7 days, 0 hours</b> • <b>1008</b> demo telemetry points recorded</div>";
+        updateSummaryCards({ station_id: "demo", location: "Demo Mode", firmware_version: "1.1.5" }, mock[mock.length - 1]);
         renderOverlayChart(mock, activeMetric);
         renderHistoryChart(mock);
         renderTimingChart(mock, benchmarkRange);
@@ -1438,6 +1442,27 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         if (rfSec) rfSec.style.display = "block";
         renderRfHeatmap(mock);
       }
+    }
+
+    function formatUptime(startIso) {
+      if (!startIso) return "0 hours";
+      const startMs = new Date(startIso).getTime();
+      const diffMs = Math.max(0, Date.now() - startMs);
+      const days = Math.floor(diffMs / (86400 * 1000));
+      const hours = Math.floor((diffMs % (86400 * 1000)) / (3600 * 1000));
+      const dayStr = days === 1 ? "1 day" : (days + " days");
+      const hrStr = hours === 1 ? "1 hour" : (hours + " hours");
+      return days > 0 ? (dayStr + ", " + hrStr) : hrStr;
+    }
+
+    function computeVoltageMax(maxV) {
+      if (!maxV || maxV <= 0) return 5;
+      const target = maxV * 1.08;
+      if (target <= 5) return 5;
+      if (target <= 6) return 6;
+      if (target <= 7) return 7;
+      if (target <= 8) return 8;
+      return Math.ceil(target);
     }
 
     async function loadStationData(stationId) {
@@ -1469,12 +1494,14 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           try { renderRfHeatmap(cachedHistory); } catch(e) { console.error("renderRfHeatmap error:", e); }
         }
 
-        const nodeFw = (data.station && data.station.firmware_version) ? ("Node FW v" + data.station.firmware_version) : "Node FW v1.0.2";
+        const nodeFw = (data.station && data.station.firmware_version) ? ("Node FW v" + data.station.firmware_version) : "Node FW v1.1.5";
         const canaryBadge = (data.station && data.station.is_canary) ? " <span class='badge badge-blue'>Canary</span>" : "";
+        const uptimeStr = formatUptime(data.station?.created_at || (cachedHistory.length > 0 ? cachedHistory[0].timestamp : null));
         document.getElementById("station-subtitle").innerHTML =
-          "Station: <b>" + stationId + "</b> • Location: <b>" + (data.station?.location || "Solar Site") + "</b>" +
-          " • <span class='badge badge-amber'>" + nodeFw + "</span>" + canaryBadge +
-          " • " + cachedHistory.length + " telemetry points recorded";
+          "<div>Station: <b>" + stationId + "</b> • Location: <b>" + (data.station?.location || "Solar Site") + "</b>" +
+          " • <span class='badge badge-amber'>" + nodeFw + "</span>" + canaryBadge + "</div>" +
+          "<div style='font-size:0.8rem; color:var(--text-muted); margin-top:3px;'>" +
+          "⏱️ Uptime: <b>" + uptimeStr + "</b> • <b>" + cachedHistory.length + "</b> telemetry points recorded</div>";
       } catch (err) {
         console.warn("API request failed:", err);
         document.getElementById("station-subtitle").innerHTML =
@@ -1820,11 +1847,18 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
       [dayToday, dayYesterday, day2Ago].forEach(arr => arr.sort((a, b) => a.x - b.x));
 
-      // Dynamic Y-axis limits ensuring enclosure temperature up to 75°C is never clipped!
+      // Dynamic Y-axis limits ensuring auto-scale relative to data shown (last 3 days)
+      const maxSolar = Math.max(...records.map(r => r.solar_v || ((r.solar_mv || 0) / 1000.0)), 0);
+      const solarYMax = computeVoltageMax(maxSolar);
+
+      const minTemp = Math.min(...records.map(r => (typeof r.temp_c === "number" ? r.temp_c : 100)), 20);
+      const tempYMin = Math.max(0, Math.min(10, Math.floor((minTemp - 5) / 5) * 5));
+      const tempYMax = Math.max(35, Math.ceil((maxRecordedTemp + 3) / 5) * 5);
+
       const metricLabels = {
-        solar: { label: "Solar Panel Voltage (V)", unit: "V", yMin: 0, yMax: 6 },
+        solar: { label: "Solar Panel Voltage (V)", unit: "V", yMin: 0, yMax: solarYMax },
         lipo:  { label: "LiPo Battery Voltage (V)", unit: "V", yMin: 3.0, yMax: 4.4 },
-        temp:  { label: "Temperature (°C)", unit: "°C", yMin: 10, yMax: Math.max(75, Math.ceil((maxRecordedTemp + 5) / 5) * 5) }
+        temp:  { label: "Temperature (°C)", unit: "°C", yMin: tempYMin, yMax: tempYMax }
       };
 
       const cfg = metricLabels[metric];
@@ -1924,8 +1958,14 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const lipoData  = records.map(r => r.lipo_v  || (r.lipo_mv  / 1000.0));
       const tempData  = records.map(r => r.temp_c);
 
-      const maxTemp = Math.max(...tempData, 0);
-      const tempYMax = Math.max(75, Math.ceil((maxTemp + 5) / 5) * 5);
+      const maxSolar = Math.max(...solarData.filter(v => typeof v === "number" && !isNaN(v)), 0);
+      const maxLipo  = Math.max(...lipoData.filter(v => typeof v === "number" && !isNaN(v)), 0);
+      const voltYMax = computeVoltageMax(Math.max(maxSolar, maxLipo));
+
+      const maxTemp = Math.max(...tempData.filter(v => typeof v === "number" && !isNaN(v)), 0);
+      const minTemp = Math.min(...tempData.filter(v => typeof v === "number" && !isNaN(v)), 20);
+      const tempYMin = Math.max(0, Math.min(10, Math.floor((minTemp - 5) / 5) * 5));
+      const tempYMax = Math.max(35, Math.ceil((maxTemp + 3) / 5) * 5);
 
       if (historyChart) historyChart.destroy();
 
@@ -1974,14 +2014,14 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
             y: {
               position: "left",
               min: 0,
-              max: 6,
+              max: voltYMax,
               grid: { color: "#21262d" },
               ticks: { color: "#8b949e" },
               title: { display: true, text: "Voltage (V)", color: "#8b949e" }
             },
             y1: {
               position: "right",
-              min: 10,
+              min: tempYMin,
               max: tempYMax,
               grid: { drawOnChartArea: false },
               ticks: { color: "#ef4444" },
