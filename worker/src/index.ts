@@ -51,6 +51,24 @@ export default {
         return withCors(await handleOta(request, env));
       }
 
+      // Serve esptool.bundle.js for in-browser partition inspection and dual-OTA management
+      if (path === "/esptool.bundle.js") {
+        const ghUrl = "https://raw.githubusercontent.com/kreier/solar/main/docs/esptool.bundle.js";
+        try {
+          const resp = await fetch(ghUrl, { headers: { "User-Agent": "kreier-solar-worker" } });
+          if (resp.ok) {
+            return withCors(new Response(await resp.arrayBuffer(), {
+              status: 200,
+              headers: {
+                "Content-Type": "application/javascript; charset=utf-8",
+                "Cache-Control": "public, max-age=86400"
+              }
+            }));
+          }
+        } catch (e) {}
+        return Response.redirect("https://unpkg.com/esptool-js@0.7.1/bundle.js", 302);
+      }
+
       // Static Firmware Binary Download Endpoint
       if (path.startsWith("/firmware/")) {
         const filename = decodeURIComponent(path.substring("/firmware/".length));

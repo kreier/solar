@@ -14,6 +14,11 @@ export function renderDashboardHtml(workerUrl?: string): string {
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☀️</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <script type="module">
+    import { ESPLoader, Transport } from "./esptool.bundle.js";
+    window.ESPLoader = ESPLoader;
+    window.ESPTransport = Transport;
+  </script>
   <style>
     :root {
       --bg: #0d1117;
@@ -744,13 +749,124 @@ export function renderDashboardHtml(workerUrl?: string): string {
       </div>
 
       <div class="modal-tabs">
-        <button id="tabBtnWebSerial" class="modal-tab-btn active" onclick="switchFlashTab('webserial')">Web Serial Install</button>
+        <button id="tabBtnSmartOTA" class="modal-tab-btn active" onclick="switchFlashTab('smartota')">🔍 Investigate &amp; Dual-OTA Manager</button>
+        <button id="tabBtnWebSerial" class="modal-tab-btn" onclick="switchFlashTab('webserial')">🧹 Factory Clean Flash</button>
         <button id="tabBtnBinaries" class="modal-tab-btn" onclick="switchFlashTab('binaries')">Direct Binaries &amp; CLI</button>
       </div>
 
       <div class="modal-body">
+        <!-- Tab 0: Smart Dual-OTA & Partition Inspector -->
+        <div id="flashTabSmartOTA">
+          <div style="background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+            <div>
+              <div style="font-weight:600;font-size:0.9rem;color:#7dd3fc;">🔍 ESP32 Dual-OTA &amp; Partition Inspector</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);" id="otaInspectorSub">Connect to inspect active boot slots, installed firmware versions, and safely update without erasing NVS.</div>
+            </div>
+            <div style="display:flex;gap:0.5rem;">
+              <button id="btnConnectInspect" class="btn btn-primary" onclick="connectAndInspect()" style="padding:0.4rem 0.85rem;font-size:0.82rem;">🔍 Connect &amp; Inspect</button>
+              <button id="btnDisconnectInspect" class="btn btn-secondary" onclick="disconnectInspector()" style="display:none;padding:0.4rem 0.85rem;font-size:0.82rem;">Disconnect</button>
+            </div>
+          </div>
+
+          <div id="otaInspectStatus" style="font-size:0.82rem;margin-bottom:0.75rem;color:var(--text-muted);display:none;padding:0.5rem 0.8rem;border-radius:6px;"></div>
+
+          <!-- Inspector Device Info (Visible once connected) -->
+          <div id="otaDeviceInfoCard" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:0.75rem;font-size:0.8rem;">
+              <div><span style="color:var(--text-muted);">Chip:</span> <b id="devChipName">-</b></div>
+              <div><span style="color:var(--text-muted);">Flash Size:</span> <b id="devFlashSize">-</b></div>
+              <div><span style="color:var(--text-muted);">MAC:</span> <b id="devMacAddr">-</b></div>
+              <div><span style="color:var(--text-muted);">Current Boot:</span> <span id="devActiveSlotBadge" class="badge badge-green">-</span></div>
+            </div>
+          </div>
+
+          <!-- Dual-Bank Slot Comparison -->
+          <div id="otaSlotsGrid" style="display:none;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+            <!-- Bank 0 (app0) -->
+            <div id="cardSlot0" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:0.85rem;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+                <b style="font-size:0.9rem;">Slot 0 (app0)</b>
+                <span id="badgeSlot0" class="badge badge-green">ACTIVE</span>
+              </div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem;" id="rangeSlot0">Offset: 0x10000 • Size: -</div>
+              <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:0.5rem;margin-bottom:0.6rem;font-size:0.8rem;">
+                <div><span style="color:var(--text-muted);">Firmware:</span> <b id="fwSlot0" style="color:var(--accent);">Detecting...</b></div>
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.2rem;" id="descSlot0">-</div>
+              </div>
+              <button id="btnSwitchSlot0" class="btn btn-secondary" onclick="switchBootSlot(0)" style="width:100%;font-size:0.78rem;padding:0.35rem;" disabled>
+                🔄 Boot from Slot 0 (Revert)
+              </button>
+            </div>
+
+            <!-- Bank 1 (app1) -->
+            <div id="cardSlot1" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:0.85rem;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+                <b style="font-size:0.9rem;">Slot 1 (app1)</b>
+                <span id="badgeSlot1" class="badge badge-gray">INACTIVE</span>
+              </div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem;" id="rangeSlot1">Offset: 0x1F0000 • Size: -</div>
+              <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:0.5rem;margin-bottom:0.6rem;font-size:0.8rem;">
+                <div><span style="color:var(--text-muted);">Firmware:</span> <b id="fwSlot1" style="color:var(--accent);">Detecting...</b></div>
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.2rem;" id="descSlot1">-</div>
+              </div>
+              <button id="btnSwitchSlot1" class="btn btn-secondary" onclick="switchBootSlot(1)" style="width:100%;font-size:0.78rem;padding:0.35rem;" disabled>
+                🔄 Boot from Slot 1 (Revert)
+              </button>
+            </div>
+          </div>
+
+          <!-- Non-Destructive Update Flasher -->
+          <div id="otaFlashActionCard" style="display:none;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:8px;padding:0.85rem;margin-bottom:1rem;">
+            <div style="font-weight:600;font-size:0.85rem;color:#6ee7b7;margin-bottom:0.3rem;">⚡ Flash Update into Inactive Slot (Non-Destructive)</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.6rem;">
+              Directly flashes into <b id="targetSlotLabel" style="color:#6ee7b7;">Slot 1 (app1)</b>. Preserves bootloader, partition table, and NVS Wi-Fi credentials. Automatically switches boot pointer to the new slot.
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+              <select id="otaFwSelect" style="flex:1;min-width:180px;font-size:0.82rem;padding:0.4rem;">
+                <option value="1.1.8-canary" selected>v1.1.8 Canary (Latest)</option>
+                <option value="1.1.7-canary">v1.1.7 Canary</option>
+                <option value="1.1.6-canary">v1.1.6 Canary</option>
+                <option value="1.1.5">v1.1.5 Stable</option>
+                <option value="1.1.4">v1.1.4 Stable</option>
+                <option value="1.0.2">v1.0.2 Stable (Legacy)</option>
+              </select>
+              <button id="btnStartSmartFlash" class="btn btn-primary" onclick="startSmartFlash()" style="padding:0.4rem 1rem;font-size:0.82rem;background:#10b981;border-color:#10b981;">
+                ⚡ Flash Inactive Slot &amp; Reboot
+              </button>
+            </div>
+            <!-- Progress Bar -->
+            <div id="otaProgressWrapper" style="display:none;margin-top:0.75rem;">
+              <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:0.25rem;">
+                <span id="otaProgressLabel">Writing...</span>
+                <span id="otaProgressPercent">0%</span>
+              </div>
+              <div style="background:rgba(255,255,255,0.1);border-radius:4px;height:8px;overflow:hidden;">
+                <div id="otaProgressBar" style="width:0%;height:100%;background:#10b981;transition:width 0.2s;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Partition Table Display (Collapsible) -->
+          <details id="otaPartDetails" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.85rem;margin-bottom:1rem;">
+            <summary style="font-size:0.8rem;font-weight:600;cursor:pointer;color:var(--text-muted);">📋 View Complete Flash Partition Scheme</summary>
+            <div style="overflow-x:auto;margin-top:0.5rem;">
+              <table style="width:100%;font-size:0.75rem;border-collapse:collapse;text-align:left;">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border);color:var(--text-muted);">
+                    <th style="padding:0.3rem;">Name</th>
+                    <th style="padding:0.3rem;">Type</th>
+                    <th style="padding:0.3rem;">Offset</th>
+                    <th style="padding:0.3rem;">Size</th>
+                  </tr>
+                </thead>
+                <tbody id="otaPartTableBody"></tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+
         <!-- Tab 1: Web Serial Install -->
-        <div id="flashTabWebSerial">
+        <div id="flashTabWebSerial" style="display:none;">
           <div id="serialStatusBanner" class="serial-status-banner supported">
             <div>
               <span id="serialStatusIcon">✅</span>
@@ -1358,11 +1474,361 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
     }
 
     function switchFlashTab(tab) {
-      const isWebSerial = (tab === "webserial");
-      document.getElementById("flashTabWebSerial").style.display = isWebSerial ? "block" : "none";
-      document.getElementById("flashTabBinaries").style.display = isWebSerial ? "none" : "block";
-      document.getElementById("tabBtnWebSerial").classList.toggle("active", isWebSerial);
-      document.getElementById("tabBtnBinaries").classList.toggle("active", !isWebSerial);
+      document.getElementById("flashTabSmartOTA").style.display = (tab === "smartota") ? "block" : "none";
+      document.getElementById("flashTabWebSerial").style.display = (tab === "webserial") ? "block" : "none";
+      document.getElementById("flashTabBinaries").style.display = (tab === "binaries") ? "block" : "none";
+      document.getElementById("tabBtnSmartOTA").classList.toggle("active", tab === "smartota");
+      document.getElementById("tabBtnWebSerial").classList.toggle("active", tab === "webserial");
+      document.getElementById("tabBtnBinaries").classList.toggle("active", tab === "binaries");
+    }
+
+    function espCrc32(seq) {
+      let crc = 0;
+      const bytes = [seq & 0xff, (seq >> 8) & 0xff, (seq >> 16) & 0xff, (seq >> 24) & 0xff];
+      for (const b of bytes) {
+        crc ^= b;
+        for (let i = 0; i < 8; i++) {
+          crc = (crc & 1) ? ((crc >>> 1) ^ 0xEDB88320) : (crc >>> 1);
+        }
+      }
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+
+    let otaEsploader = null;
+    let otaTransport = null;
+    let otaPort = null;
+    let otaPartitions = [];
+    let otaActiveSlot = 0;
+    let otaActiveSeq = 1;
+    let otaActiveSector = 0;
+    let otaDataOffset = 0xE000;
+    let otaSlot0Part = null;
+    let otaSlot1Part = null;
+
+    async function connectAndInspect() {
+      const statusEl = document.getElementById("otaInspectStatus");
+      statusEl.style.display = "block";
+      statusEl.className = "serial-status-banner supported";
+      statusEl.textContent = "Requesting USB serial port...";
+
+      try {
+        if (!("serial" in navigator)) {
+          alert("Web Serial is not supported in this browser. Please use Chrome, Edge, Brave, or Opera.");
+          return;
+        }
+
+        if (!window.ESPLoader || !window.ESPTransport) {
+          statusEl.textContent = "Loading esptool engine...";
+          const mod = await import("./esptool.bundle.js").catch(() => import("https://unpkg.com/esptool-js@0.7.1/bundle.js"));
+          window.ESPLoader = mod.ESPLoader;
+          window.ESPTransport = mod.Transport;
+        }
+
+        otaPort = await navigator.serial.requestPort();
+        statusEl.textContent = "Connecting to ESP32 bootloader (115200 baud)...";
+        otaTransport = new window.ESPTransport(otaPort);
+        otaEsploader = new window.ESPLoader({
+          transport: otaTransport,
+          baudrate: 115200,
+          romBaudrate: 115200,
+          terminal: {
+            clean() {},
+            writeLine(s) { console.log(s); },
+            write(s) { console.log(s); }
+          }
+        });
+
+        await otaEsploader.main();
+        await otaEsploader.flashId();
+
+        statusEl.textContent = "Reading partition scheme and dual-OTA boot status...";
+
+        const chipName = otaEsploader.chip.CHIP_NAME || "ESP32";
+        let flashSize = "4MB";
+        try { flashSize = await otaEsploader.detectFlashSize(); } catch (e) {}
+        let macStr = "-";
+        try { macStr = await otaEsploader.chip.readMac(otaEsploader); } catch (e) {}
+
+        document.getElementById("devChipName").textContent = chipName;
+        document.getElementById("devFlashSize").textContent = flashSize;
+        document.getElementById("devMacAddr").textContent = macStr;
+
+        const partBytes = await otaEsploader.readFlash(0x8000, 3072);
+        otaPartitions = [];
+        for (let i = 0; i < partBytes.length; i += 32) {
+          if (partBytes[i] !== 0xaa || partBytes[i + 1] !== 0x50) break;
+          const type = partBytes[i + 2];
+          const subtype = partBytes[i + 3];
+          const offset = (partBytes[i + 4] | (partBytes[i + 5] << 8) | (partBytes[i + 6] << 16) | (partBytes[i + 7] << 24)) >>> 0;
+          const size = (partBytes[i + 8] | (partBytes[i + 9] << 8) | (partBytes[i + 10] << 16) | (partBytes[i + 11] << 24)) >>> 0;
+          let label = "";
+          for (let j = 12; j < 28; j++) {
+            if (partBytes[i + j] === 0) break;
+            label += String.fromCharCode(partBytes[i + j]);
+          }
+          otaPartitions.push({ label, type, subtype, offset, size });
+        }
+
+        otaSlot0Part = otaPartitions.find(p => p.label === "app0" || (p.type === 0 && p.subtype === 16));
+        otaSlot1Part = otaPartitions.find(p => p.label === "app1" || (p.type === 0 && p.subtype === 17));
+        const otadataP = otaPartitions.find(p => p.label === "otadata");
+        if (otadataP) otaDataOffset = otadataP.offset;
+
+        const otaBytes = await otaEsploader.readFlash(otaDataOffset, 4096 + 32);
+        function parseOtaSec(bytes, off) {
+          const seq = (bytes[off] | (bytes[off+1] << 8) | (bytes[off+2] << 16) | (bytes[off+3] << 24)) >>> 0;
+          const state = (bytes[off+24] | (bytes[off+25] << 8) | (bytes[off+26] << 16) | (bytes[off+27] << 24)) >>> 0;
+          const crc = (bytes[off+28] | (bytes[off+29] << 8) | (bytes[off+30] << 16) | (bytes[off+31] << 24)) >>> 0;
+          const valid = (seq !== 0xFFFFFFFF && crc === espCrc32(seq));
+          return { seq, state, crc, valid };
+        }
+
+        const sec0 = parseOtaSec(otaBytes, 0);
+        const sec1 = parseOtaSec(otaBytes, 4096);
+
+        if (sec0.valid && sec1.valid) {
+          if (sec0.seq > sec1.seq) { otaActiveSeq = sec0.seq; otaActiveSector = 0; }
+          else { otaActiveSeq = sec1.seq; otaActiveSector = 1; }
+        } else if (sec0.valid) {
+          otaActiveSeq = sec0.seq; otaActiveSector = 0;
+        } else if (sec1.valid) {
+          otaActiveSeq = sec1.seq; otaActiveSector = 1;
+        } else {
+          otaActiveSeq = 1; otaActiveSector = 0;
+        }
+
+        otaActiveSlot = ((otaActiveSeq - 1) % 2);
+
+        async function readSlotFw(part: any) {
+          if (!part) return { ver: "Not Found", desc: "No partition allocated" };
+          try {
+            const raw = await otaEsploader.readFlash(part.offset, 4096);
+            let str = "";
+            for (let i = 0; i < raw.length; i++) str += String.fromCharCode(raw[i]);
+            const verMatch = str.match(/1\.[0-9]+\.[0-9]+(-canary)?/);
+            const ver = verMatch ? ("v" + verMatch[0]) : "Unknown Version";
+            let buildInfo = "";
+            const magic = (raw[32] | (raw[33] << 8) | (raw[34] << 16) | (raw[35] << 24)) >>> 0;
+            if (magic === 0xabcd5432) {
+              let date = ""; for (let i = 96; i < 112 && raw[i] !== 0; i++) date += String.fromCharCode(raw[i]);
+              let time = ""; for (let i = 80; i < 96 && raw[i] !== 0; i++) time += String.fromCharCode(raw[i]);
+              let idf = ""; for (let i = 112; i < 144 && raw[i] !== 0; i++) idf += String.fromCharCode(raw[i]);
+              buildInfo = \`Built: \${date} \${time} (IDF \${idf})\`;
+            }
+            return { ver, desc: buildInfo || "Valid application binary" };
+          } catch (e: any) {
+            return { ver: "Unreadable / Empty", desc: e.message };
+          }
+        }
+
+        const info0 = await readSlotFw(otaSlot0Part);
+        const info1 = await readSlotFw(otaSlot1Part);
+
+        document.getElementById("otaDeviceInfoCard").style.display = "block";
+        document.getElementById("otaSlotsGrid").style.display = "grid";
+        document.getElementById("otaFlashActionCard").style.display = "block";
+        document.getElementById("otaPartDetails").style.display = "block";
+        document.getElementById("btnDisconnectInspect").style.display = "inline-block";
+        document.getElementById("btnConnectInspect").textContent = "🔄 Re-scan Device";
+
+        document.getElementById("devActiveSlotBadge").textContent = (otaActiveSlot === 0) ? "Slot 0 (app0)" : "Slot 1 (app1)";
+
+        const isSlot0Active = (otaActiveSlot === 0);
+        document.getElementById("badgeSlot0").className = isSlot0Active ? "badge badge-green" : "badge badge-gray";
+        document.getElementById("badgeSlot0").textContent = isSlot0Active ? "ACTIVE (Booting)" : "INACTIVE";
+        document.getElementById("rangeSlot0").textContent = otaSlot0Part ? \`Offset: 0x\${otaSlot0Part.offset.toString(16)} • Size: \${(otaSlot0Part.size / (1024*1024)).toFixed(2)} MB\` : "Offset: -";
+        document.getElementById("fwSlot0").textContent = info0.ver;
+        document.getElementById("descSlot0").textContent = info0.desc;
+        const btnSw0 = document.getElementById("btnSwitchSlot0");
+        btnSw0.disabled = isSlot0Active;
+        btnSw0.textContent = isSlot0Active ? "🟢 Currently Booting" : "🔄 Boot from Slot 0 (Revert)";
+
+        const isSlot1Active = (otaActiveSlot === 1);
+        document.getElementById("badgeSlot1").className = isSlot1Active ? "badge badge-green" : "badge badge-gray";
+        document.getElementById("badgeSlot1").textContent = isSlot1Active ? "ACTIVE (Booting)" : "INACTIVE";
+        document.getElementById("rangeSlot1").textContent = otaSlot1Part ? \`Offset: 0x\${otaSlot1Part.offset.toString(16)} • Size: \${(otaSlot1Part.size / (1024*1024)).toFixed(2)} MB\` : "Offset: -";
+        document.getElementById("fwSlot1").textContent = info1.ver;
+        document.getElementById("descSlot1").textContent = info1.desc;
+        const btnSw1 = document.getElementById("btnSwitchSlot1");
+        btnSw1.disabled = isSlot1Active;
+        btnSw1.textContent = isSlot1Active ? "🟢 Currently Booting" : "🔄 Boot from Slot 1 (Revert)";
+
+        const inactiveSlot = isSlot0Active ? 1 : 0;
+        const targetPart = isSlot0Active ? otaSlot1Part : otaSlot0Part;
+        document.getElementById("targetSlotLabel").textContent = \`Slot \${inactiveSlot} (\${targetPart ? targetPart.label : (inactiveSlot === 0 ? "app0" : "app1")}) at 0x\${targetPart ? targetPart.offset.toString(16) : "-"}\`;
+
+        const tb = document.getElementById("otaPartTableBody");
+        tb.innerHTML = "";
+        otaPartitions.forEach((p: any) => {
+          const tr = document.createElement("tr");
+          tr.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
+          tr.innerHTML = \`
+            <td style="padding:0.3rem;"><b>\${p.label}</b></td>
+            <td style="padding:0.3rem;">\${p.type === 0 ? "app" : "data"} (0x\${p.subtype.toString(16)})</td>
+            <td style="padding:0.3rem;"><code>0x\${p.offset.toString(16)}</code></td>
+            <td style="padding:0.3rem;">\${(p.size / 1024).toFixed(0)} KB (\${(p.size / (1024*1024)).toFixed(2)} MB)</td>
+          \`;
+          tb.appendChild(tr);
+        });
+
+        statusEl.className = "serial-status-banner supported";
+        statusEl.textContent = \`✅ Successfully investigated \${chipName}. Ready to switch boot slot or flash non-destructive updates.\`;
+      } catch (err: any) {
+        console.error(err);
+        statusEl.className = "serial-status-banner unsupported";
+        statusEl.textContent = "Error investigating ESP32: " + (err.message || err);
+      }
+    }
+
+    async function switchBootSlot(targetSlot: number) {
+      if (!otaEsploader) return;
+      if (!confirm(\`Switch boot slot to Slot \${targetSlot} and reboot the device?\`)) return;
+
+      const statusEl = document.getElementById("otaInspectStatus");
+      statusEl.textContent = \`Writing otadata pointer to boot from Slot \${targetSlot}...\`;
+
+      try {
+        const nextSeq = (otaActiveSeq || 1) + 1;
+        const nextCrc = espCrc32(nextSeq);
+        const writeSector = (otaActiveSector === 0) ? 1 : 0;
+        const targetSectorAddr = otaDataOffset + (writeSector * 4096);
+
+        const buf = new Uint8Array(4096).fill(0xff);
+        buf[0] = nextSeq & 0xff;
+        buf[1] = (nextSeq >> 8) & 0xff;
+        buf[2] = (nextSeq >> 16) & 0xff;
+        buf[3] = (nextSeq >> 24) & 0xff;
+        buf[24] = 0xff; buf[25] = 0xff; buf[26] = 0xff; buf[27] = 0xff;
+        buf[28] = nextCrc & 0xff;
+        buf[29] = (nextCrc >> 8) & 0xff;
+        buf[30] = (nextCrc >> 16) & 0xff;
+        buf[31] = (nextCrc >> 24) & 0xff;
+
+        await otaEsploader.writeFlash({
+          fileArray: [{ data: buf, address: targetSectorAddr }],
+          flashSize: "keep",
+          flashMode: "keep",
+          flashFreq: "keep",
+          eraseAll: false,
+          compress: true
+        });
+
+        statusEl.textContent = \`✅ Successfully pointed bootloader to Slot \${targetSlot}! Resetting board...\`;
+        await otaEsploader.after("hard_reset");
+        alert(\`Device is rebooting from Slot \${targetSlot}!\`);
+        await disconnectInspector();
+      } catch (err: any) {
+        console.error(err);
+        statusEl.textContent = "Error switching boot slot: " + err.message;
+      }
+    }
+
+    async function startSmartFlash() {
+      if (!otaEsploader) return;
+      const ver = (document.getElementById("otaFwSelect") as HTMLSelectElement).value;
+      const chip = otaEsploader.chip.CHIP_NAME.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const chipFamily = chip.includes("s3") ? "esp32s3" : (chip.includes("c") ? "esp32c5" : "esp32");
+
+      const isSlot0Active = (otaActiveSlot === 0);
+      const targetSlot = isSlot0Active ? 1 : 0;
+      const targetPart = isSlot0Active ? otaSlot1Part : otaSlot0Part;
+
+      if (!targetPart) {
+        alert("Target slot partition was not found in partition table!");
+        return;
+      }
+
+      if (!confirm(\`Flash firmware v\${ver} into Slot \${targetSlot} (\${targetPart.label} at 0x\${targetPart.offset.toString(16)}) without touching NVS credentials or bootloader?\`)) return;
+
+      const progressWrap = document.getElementById("otaProgressWrapper");
+      const progressBar = document.getElementById("otaProgressBar");
+      const progressLabel = document.getElementById("otaProgressLabel");
+      const progressPercent = document.getElementById("otaProgressPercent");
+      progressWrap.style.display = "block";
+      progressLabel.textContent = \`Downloading firmware-\${chipFamily}-v\${ver}.bin...\`;
+      progressBar.style.width = "10%";
+
+      try {
+        const binUrl = \`firmware/firmware-\${chipFamily}-v\${ver}.bin\`;
+        const binResp = await fetch(binUrl);
+        if (!binResp.ok) throw new Error(\`Failed to download firmware binary (\${binResp.status}): \${binUrl}\`);
+        const binBuf = new Uint8Array(await binResp.arrayBuffer());
+
+        if (binBuf.length > targetPart.size) {
+          throw new Error(\`Firmware size (\${(binBuf.length / (1024*1024)).toFixed(2)} MB) exceeds partition size (\${(targetPart.size / (1024*1024)).toFixed(2)} MB)!\`);
+        }
+
+        progressLabel.textContent = \`Writing firmware into 0x\${targetPart.offset.toString(16)}...\`;
+
+        await otaEsploader.writeFlash({
+          fileArray: [{ data: binBuf, address: targetPart.offset }],
+          flashSize: "keep",
+          flashMode: "keep",
+          flashFreq: "keep",
+          eraseAll: false,
+          compress: true,
+          reportProgress: (fileIndex: any, written: number, total: number) => {
+            const pct = Math.floor((written / total) * 100);
+            progressBar.style.width = pct + "%";
+            progressPercent.textContent = pct + "%";
+            progressLabel.textContent = \`Writing to Slot \${targetSlot}: \${written} / \${total} bytes\`;
+          }
+        });
+
+        progressLabel.textContent = \`Updating otadata to boot from Slot \${targetSlot}...\`;
+        const nextSeq = (otaActiveSeq || 1) + 1;
+        const nextCrc = espCrc32(nextSeq);
+        const writeSector = (otaActiveSector === 0) ? 1 : 0;
+        const targetSectorAddr = otaDataOffset + (writeSector * 4096);
+
+        const otaBuf = new Uint8Array(4096).fill(0xff);
+        otaBuf[0] = nextSeq & 0xff;
+        otaBuf[1] = (nextSeq >> 8) & 0xff;
+        otaBuf[2] = (nextSeq >> 16) & 0xff;
+        otaBuf[3] = (nextSeq >> 24) & 0xff;
+        otaBuf[24] = 0xff; otaBuf[25] = 0xff; otaBuf[26] = 0xff; otaBuf[27] = 0xff;
+        otaBuf[28] = nextCrc & 0xff;
+        otaBuf[29] = (nextCrc >> 8) & 0xff;
+        otaBuf[30] = (nextCrc >> 16) & 0xff;
+        otaBuf[31] = (nextCrc >> 24) & 0xff;
+
+        await otaEsploader.writeFlash({
+          fileArray: [{ data: otaBuf, address: targetSectorAddr }],
+          flashSize: "keep",
+          flashMode: "keep",
+          flashFreq: "keep",
+          eraseAll: false,
+          compress: true
+        });
+
+        progressBar.style.width = "100%";
+        progressPercent.textContent = "100%";
+        progressLabel.textContent = "Flashing complete! Resetting board...";
+
+        await otaEsploader.after("hard_reset");
+        alert(\`Flashing complete! Board has been rebooted into Slot \${targetSlot} (v\${ver}). Existing working firmware remains safely in Slot \${isSlot0Active ? 0 : 1} and can be reverted anytime!\`);
+        await disconnectInspector();
+      } catch (err: any) {
+        console.error(err);
+        alert("Smart flash failed: " + err.message);
+        progressLabel.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function disconnectInspector() {
+      try {
+        if (otaEsploader && otaEsploader.transport) {
+          await otaEsploader.transport.disconnect();
+        } else if (otaPort) {
+          await otaPort.close();
+        }
+      } catch (e) {}
+      otaEsploader = null;
+      otaTransport = null;
+      otaPort = null;
+      document.getElementById("btnDisconnectInspect").style.display = "none";
+      document.getElementById("btnConnectInspect").textContent = "🔍 Connect & Inspect";
+      document.getElementById("otaInspectStatus").textContent = "Disconnected from board.";
     }
 
     let currentFlashMode = "clean";
