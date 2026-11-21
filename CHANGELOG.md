@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.9-canary] - 2026-11-21
+
+### Added & Enhanced
+- **Web UI & Serial Terminal Enhancements (`Web v1.1.9`)**:
+  - **Normal Reset vs. Bootloader Separation**: Separated **🔄 Reset Device** (standard hardware reset keeping IO0 pulled HIGH to boot installed firmware) from **⚡ Bootloader** (ROM Download Mode asserting IO0 LOW while pulsing EN).
+  - **Download Logs Feature**: Added **📥 Download Logs** button to export accumulated console logs into a timestamped `.txt` file (`solar-<chip>-serial-logs-<timestamp>.txt`).
+  - **Enlarged Terminal Display**: Expanded live console height to 380px with vertical drag-resizing (`resize: vertical`) and clean line spacing.
+  - **Live Slot & Version Detection**: Automatically updates the active boot partition badge and firmware version badge upon detecting boot logs (`Loaded app from partition at offset...` and `Solar Telemetry Monitor v...`).
+  - **Case-Insensitive Station Lookups**: Updated backend D1 queries to use `COLLATE NOCASE` for station IDs.
+- **Wi-Fi Channels 1–13 Scanning (Vietnam Regulatory Domain)**:
+  - Enabled channel range 1..13 by setting ESP-IDF `wifi_country_t` with country code `"VN"`, `schan = 1`, `nchan = 13`, and `policy = WIFI_COUNTRY_POLICY_MANUAL`.
+- **Static Ohmic Load Solar Power Derivation**:
+  - Added support for stations without INA3221 (such as PHUMY with two 24Ω resistors in series = 48Ω): derived solar power via Ohm's law ($P = V^2 / R$).
+  - Preset to 48.0Ω default with dynamic configuration supported via NVS key `load_r` and the Soft-AP setup portal.
+
 ## [1.1.8-canary] - 2026-11-21
 
 ### Fixed & Enhanced

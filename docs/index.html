@@ -458,7 +458,7 @@
       <div class="title-area">
         <h1>
           <span>☀️</span> Solar Telemetry Fleet
-          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.8</span>
+          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.9</span>
         </h1>
         <div class="subtitle" id="station-subtitle">Connecting to Cloudflare D1 Edge Ingestion...</div>
       </div>
@@ -722,9 +722,9 @@
       <p>ESP32 Solar Telemetry Fleet &bull; Minimal SPIFFS &bull; Dual OTA &bull; Cloudflare Edge &amp; D1 Database</p>
       <p>
         <a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull;
-        <span>Website v1.1.8</span> &bull;
+        <span>Website v1.1.9</span> &bull;
         <span>Firmware v<span id="fw-version">1.1.5</span> (Stable)</span> &bull;
-        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.8 Canary</span> &bull;
+        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.9 Canary</span> &bull;
         <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a>
       </p>
     </footer>
@@ -736,7 +736,7 @@
       <div class="modal-header">
         <div class="modal-title">
           <span>⚡ Web Firmware Installer</span>
-          <span class="badge badge-amber" id="modal-ver-badge">v1.1.8 Canary</span>
+          <span class="badge badge-amber" id="modal-ver-badge">v1.1.9 Canary</span>
         </div>
         <button class="modal-close-btn" onclick="closeFlashModal()" title="Close dialog">✕</button>
       </div>
@@ -768,16 +768,18 @@
           <div id="otaSerialTermCard" style="display:none;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:0.75rem;margin-bottom:1rem;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.5rem;">
               <div style="font-weight:600;font-size:0.82rem;color:#38bdf8;">📟 ESP32 Live Serial Console (115200 baud)</div>
-              <div style="display:flex;gap:0.4rem;align-items:center;">
-                <label style="font-size:0.75rem;color:var(--text-muted);display:flex;align-items:center;gap:0.25rem;">
+              <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap;">
+                <label style="font-size:0.75rem;color:var(--text-muted);display:flex;align-items:center;gap:0.25rem;margin-right:0.2rem;">
                   <input type="checkbox" id="otaSerialAutoScroll" checked> Auto-scroll
                 </label>
-                <button class="btn btn-secondary" onclick="resetBoardSerial()" style="padding:0.25rem 0.5rem;font-size:0.75rem;color:#f59e0b;">🔄 Reset Board</button>
+                <button class="btn btn-secondary" onclick="resetBoardSerial(false)" title="Normal restart: pulses EN with IO0 HIGH to run installed application" style="padding:0.25rem 0.5rem;font-size:0.75rem;color:#10b981;">🔄 Reset Device</button>
+                <button class="btn btn-secondary" onclick="resetBoardSerial(true)" title="Bootloader restart: pulses EN with IO0 LOW to enter ROM Download Mode for flashing" style="padding:0.25rem 0.5rem;font-size:0.75rem;color:#f59e0b;">⚡ Bootloader</button>
+                <button class="btn btn-secondary" onclick="downloadSerialLogs()" title="Download captured console logs as a text file" style="padding:0.25rem 0.5rem;font-size:0.75rem;color:#38bdf8;">📥 Download Logs</button>
                 <button class="btn btn-secondary" onclick="document.getElementById('otaSerialLogs').textContent=''" style="padding:0.25rem 0.5rem;font-size:0.75rem;">Clear</button>
                 <button class="btn btn-secondary" onclick="closeSerialMonitor()" style="padding:0.25rem 0.5rem;font-size:0.75rem;color:#ef4444;">Close</button>
               </div>
             </div>
-            <pre id="otaSerialLogs" style="background:#010409;color:#58a6ff;padding:0.6rem;border-radius:6px;font-family:monospace;font-size:0.75rem;height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:0 0 0.5rem 0;border:1px solid #21262d;"></pre>
+            <pre id="otaSerialLogs" style="background:#010409;color:#58a6ff;padding:0.75rem;border-radius:6px;font-family:monospace;font-size:0.78rem;line-height:1.4;height:380px;min-height:220px;max-height:650px;resize:vertical;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:0 0 0.5rem 0;border:1px solid #21262d;"></pre>
             <div style="display:flex;gap:0.5rem;">
               <input type="text" id="otaSerialInput" placeholder="Send serial command (e.g. OTA, STATUS, HELP)..." style="flex:1;font-size:0.8rem;padding:0.35rem 0.6rem;background:#161b22;border:1px solid #30363d;border-radius:6px;color:#f0f6fc;" onkeydown="if(event.key==='Enter')sendSerialCommand()">
               <button class="btn btn-primary" onclick="sendSerialCommand()" style="padding:0.35rem 0.75rem;font-size:0.8rem;">Send</button>
@@ -847,7 +849,7 @@
                 <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Firmware Version:</label>
                 <select id="otaFwSelect" style="width:100%;font-size:0.82rem;padding:0.4rem;background:#0d1117;color:#f0f6fc;border:1px solid #30363d;border-radius:6px;">
                   <option value="1.1.9-canary" selected>v1.1.9 Canary (Latest: CH 12-13 VN, 48Ω Load)</option>
-                  <option value="1.1.8-canary">v1.1.8 Canary (Latest)</option>
+                  <option value="1.1.8-canary">v1.1.8 Canary</option>
                   <option value="1.1.7-canary">v1.1.7 Canary</option>
                   <option value="1.1.6-canary">v1.1.6 Canary</option>
                   <option value="1.1.5">v1.1.5 Stable</option>
@@ -1688,19 +1690,53 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       }
     }
 
-    async function resetBoardSerial() {
+    async function resetBoardSerial(toBootloader = false) {
       if (!serialMonitorPort) return;
       const termLogs = document.getElementById("otaSerialLogs");
-      termLogs.textContent += "[System] Toggling RTS/DTR to hardware-reset board...\n";
       try {
-        await serialMonitorPort.setSignals({ dataTerminalReady: false, requestToSend: true });
-        await new Promise(r => setTimeout(r, 120));
-        await serialMonitorPort.setSignals({ dataTerminalReady: true, requestToSend: false });
-        await new Promise(r => setTimeout(r, 120));
-        await serialMonitorPort.setSignals({ dataTerminalReady: false, requestToSend: false });
+        if (toBootloader) {
+          termLogs.textContent += "\n[System] Restarting into ROM Download Mode (IO0=LOW, pulsing EN)...\n";
+          // ROM Download Mode: pull EN low (RTS=true), then pull IO0 low (DTR=true) while releasing EN (RTS=false)
+          // The ESP32 hardware samples IO0 at the rising edge of EN
+          await serialMonitorPort.setSignals({ dataTerminalReady: false, requestToSend: true });
+          await new Promise(r => setTimeout(r, 120));
+          await serialMonitorPort.setSignals({ dataTerminalReady: true, requestToSend: false });
+          await new Promise(r => setTimeout(r, 120));
+          await serialMonitorPort.setSignals({ dataTerminalReady: false, requestToSend: false });
+        } else {
+          termLogs.textContent += "\n[System] Normal Device Restart (pulsing EN, keeping IO0=HIGH)...\n";
+          // Normal restart: keep DTR false so IO0 stays pulled HIGH by external resistor, and pulse RTS (EN) LOW
+          await serialMonitorPort.setSignals({ dataTerminalReady: false, requestToSend: true });
+          await new Promise(r => setTimeout(r, 150));
+          await serialMonitorPort.setSignals({ dataTerminalReady: false, requestToSend: false });
+        }
       } catch (e) {
         termLogs.textContent += "[Reset Error] " + e.message + "\n";
       }
+    }
+
+    function downloadSerialLogs() {
+      const termLogs = document.getElementById("otaSerialLogs");
+      const text = termLogs ? termLogs.textContent : "";
+      if (!text || text.trim().length === 0) {
+        alert("No logs captured yet to download.");
+        return;
+      }
+      const chipEl = document.getElementById("devChipName");
+      const chip = chipEl && chipEl.textContent && chipEl.textContent !== "-" ? chipEl.textContent.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "") : "esp32";
+      const now = new Date();
+      const dateStr = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const filename = "solar-" + chip + "-serial-logs-" + dateStr + ".txt";
+      
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     async function sendSerialCommand() {
