@@ -460,7 +460,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="title-area">
         <h1>
           <span>☀️</span> Solar Telemetry Fleet
-          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.5</span>
+          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.7</span>
         </h1>
         <div class="subtitle" id="station-subtitle">Connecting to Cloudflare D1 Edge Ingestion...</div>
       </div>
@@ -481,6 +481,13 @@ export function renderDashboardHtml(workerUrl?: string): string {
           <span>Solar Panel</span>
         </div>
         <div class="card-value" id="solar-val">-- <span class="card-unit">V</span></div>
+      </div>
+
+      <div class="card" id="card-power">
+        <div class="card-label">
+          <span>Solar Power</span>
+        </div>
+        <div class="card-value" id="power-val">-- <span class="card-unit">mW</span></div>
       </div>
 
       <div class="card" id="card-lipo">
@@ -537,11 +544,14 @@ export function renderDashboardHtml(workerUrl?: string): string {
           <div class="chart-title">🔋 LiPo Battery Autonomy &amp; Voltage Trends</div>
           <div class="subtitle">Multi-range voltage tracking and real-time battery runtime estimation</div>
         </div>
-        <div class="btn-group" id="battery-range-toggle">
-          <button class="active" data-days="1">1 Day</button>
-          <button data-days="7">7 Days</button>
-          <button data-days="30">30 Days</button>
-          <button data-days="90">3 Months</button>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-sm" id="btn-toggle-battery-graph" onclick="toggleBatteryGraph()" style="background:#21262d;border:1px solid var(--border);color:var(--text);padding:0.35rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;">📈 Show Trend Graph</button>
+          <div class="btn-group" id="battery-range-toggle" style="display:none;">
+            <button class="active" data-days="1">1 Day</button>
+            <button data-days="7">7 Days</button>
+            <button data-days="30">30 Days</button>
+            <button data-days="365">365 Days</button>
+          </div>
         </div>
       </div>
 
@@ -549,23 +559,25 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1.25rem;">
         <div class="card" style="background:#0d1117;padding:1rem;">
           <div class="card-label"><span>24-Hour Runtime Est.</span><span class="badge badge-green">1 Day</span></div>
-          <div class="card-value" id="est-runtime-24h" style="font-size:1.25rem;">Calculating...</div>
+          <div class="card-value" id="est-runtime-24h" style="font-size:1.35rem;font-weight:700;color:var(--battery);">-- Days</div>
           <div class="card-sub" id="est-drop-24h">&Delta;V: -- mV / 24h</div>
         </div>
         <div class="card" style="background:#0d1117;padding:1rem;">
           <div class="card-label"><span>7-Day Trend Est.</span><span class="badge badge-blue">7 Days</span></div>
-          <div class="card-value" id="est-runtime-7d" style="font-size:1.25rem;">Calculating...</div>
+          <div class="card-value" id="est-runtime-7d" style="font-size:1.35rem;font-weight:700;color:var(--battery);">-- Days</div>
           <div class="card-sub" id="est-drop-7d">&Delta;V: -- mV / day avg</div>
         </div>
         <div class="card" style="background:#0d1117;padding:1rem;">
           <div class="card-label"><span>30-Day Autonomy Est.</span><span class="badge badge-amber">30 Days</span></div>
-          <div class="card-value" id="est-runtime-30d" style="font-size:1.25rem;">Calculating...</div>
+          <div class="card-value" id="est-runtime-30d" style="font-size:1.35rem;font-weight:700;color:var(--battery);">-- Days</div>
           <div class="card-sub" id="est-drop-30d">&Delta;V: -- mV / day avg</div>
         </div>
       </div>
 
-      <div class="chart-container" style="height:280px;">
-        <canvas id="batteryChart"></canvas>
+      <div id="battery-chart-collapse" style="display:none;">
+        <div class="chart-container" style="height:280px;">
+          <canvas id="batteryChart"></canvas>
+        </div>
       </div>
     </div>
 
@@ -577,7 +589,8 @@ export function renderDashboardHtml(workerUrl?: string): string {
           <div class="subtitle">Comparing diurnal curves across the last 3 days (Extended Temp Range 10–75°C)</div>
         </div>
         <div class="btn-group" id="overlay-metric-toggle">
-          <button class="active" data-metric="solar">Solar Panel</button>
+          <button class="active" data-metric="solar">Solar Voltage</button>
+          <button data-metric="power">Solar Power</button>
           <button data-metric="lipo">LiPo Battery</button>
           <button data-metric="temp">Temperature</button>
         </div>
@@ -711,9 +724,9 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <p>ESP32 Solar Telemetry Fleet &bull; Minimal SPIFFS &bull; Dual OTA &bull; Cloudflare Edge &amp; D1 Database</p>
       <p>
         <a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull;
-        <span>Website v1.1.5</span> &bull;
+        <span>Website v1.1.7</span> &bull;
         <span>Firmware v<span id="fw-version">1.1.5</span> (Stable)</span> &bull;
-        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.5 Canary</span> &bull;
+        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.7 Canary</span> &bull;
         <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a>
       </p>
     </footer>
@@ -758,8 +771,9 @@ export function renderDashboardHtml(workerUrl?: string): string {
             <div>
               <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;color:var(--text-muted);">Firmware Release Channel:</label>
               <select id="flasherVerSelect" style="width:100%;" onchange="updateFlasherManifest()">
+                <option value="1.1.7-canary" selected>v1.1.7 Canary (INA3221 CH2, Solar Power Telemetry, LiPo Autonomy Analytics)</option>
                 <option value="1.1.6-canary">v1.1.6 Canary (S3 USB Update Bootloader, Soft-AP Verbose, Phy My Hung)</option>
-                <option value="1.1.5" selected>v1.1.5 Stable (Production: Reset OTA, Auto-scale, INA3221 3-CH)</option>
+                <option value="1.1.5">v1.1.5 Stable (Production: Reset OTA, Auto-scale, INA3221 3-CH)</option>
                 <option value="1.1.4">v1.1.4 Stable</option>
                 <option value="1.0.2">v1.0.2 Stable (Legacy)</option>
               </select>
@@ -1450,9 +1464,9 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const diffMs = Math.max(0, Date.now() - startMs);
       const days = Math.floor(diffMs / (86400 * 1000));
       const hours = Math.floor((diffMs % (86400 * 1000)) / (3600 * 1000));
-      const dayStr = days === 1 ? "1 day" : (days + " days");
-      const hrStr = hours === 1 ? "1 hour" : (hours + " hours");
-      return days > 0 ? (dayStr + ", " + hrStr) : hrStr;
+      const dayStr = days === 1 ? "1 day" : \`\${days} days\`;
+      const hrStr = hours === 1 ? "1 hour" : \`\${hours} hours\`;
+      return days > 0 ? \`\${dayStr}, \${hrStr}\` : hrStr;
     }
 
     function computeVoltageMax(maxV) {
@@ -1463,6 +1477,53 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       if (target <= 7) return 7;
       if (target <= 8) return 8;
       return Math.ceil(target);
+    }
+
+    function computePowerMax(maxP) {
+      if (!maxP || maxP <= 0) return 500;
+      const target = maxP * 1.15;
+      if (target <= 100) return 100;
+      if (target <= 250) return 250;
+      if (target <= 500) return 500;
+      if (target <= 1000) return 1000;
+      if (target <= 2000) return 2000;
+      if (target <= 5000) return 5000;
+      return Math.ceil(target / 500) * 500;
+    }
+
+    function extractPowerMw(r) {
+      if (!r) return 0;
+      if (r.power_mw != null && !isNaN(r.power_mw)) return Number(r.power_mw);
+      if (r.raw_payload) {
+        try {
+          const raw = typeof r.raw_payload === "string" ? JSON.parse(r.raw_payload) : r.raw_payload;
+          if (raw?.power_mw != null && !isNaN(raw.power_mw)) return Number(raw.power_mw);
+          if (raw?.ina3221?.ch1_solar?.power_mw != null && !isNaN(raw.ina3221.ch1_solar.power_mw)) return Number(raw.ina3221.ch1_solar.power_mw);
+          if (raw?.ina3221?.ch1_solar?.voltage_v != null && raw?.ina3221?.ch1_solar?.current_ma != null) {
+            return Number((raw.ina3221.ch1_solar.voltage_v * raw.ina3221.ch1_solar.current_ma).toFixed(1));
+          }
+        } catch (_) {}
+      }
+      return 0;
+    }
+
+    function toggleBatteryGraph() {
+      const collapseEl = document.getElementById("battery-chart-collapse");
+      const toggleBtn = document.getElementById("btn-toggle-battery-graph");
+      const rangeToggle = document.getElementById("battery-range-toggle");
+      if (!collapseEl) return;
+      if (collapseEl.style.display === "none" || collapseEl.style.display === "") {
+        collapseEl.style.display = "block";
+        if (rangeToggle) rangeToggle.style.display = "inline-flex";
+        if (toggleBtn) toggleBtn.textContent = "📉 Hide Trend Graph";
+        if (cachedHistory && cachedHistory.length > 0) {
+          renderBatteryAnalytics(cachedHistory);
+        }
+      } else {
+        collapseEl.style.display = "none";
+        if (rangeToggle) rangeToggle.style.display = "none";
+        if (toggleBtn) toggleBtn.textContent = "📈 Show Trend Graph";
+      }
     }
 
     async function loadStationData(stationId) {
@@ -1554,9 +1615,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       if (!latest && !station) return;
 
       // Check if LiPo telemetry is disabled
-      const isLipoDisabled = (station && station.enable_lipo === 0) ||
-                             (latest && (latest.lipo_mv === null || latest.lipo_mv === 0)) ||
-                             (station && (station.battery_mv === 0 || station.battery_mv === null));
+      const isLipoDisabled = (station && station.enable_lipo === 0 && (!station.battery_mv || station.battery_mv <= 0) && (!latest || !latest.lipo_mv || latest.lipo_mv <= 0));
 
       const lipoCard = document.getElementById("card-lipo");
       const batteryAnalyticsCard = document.getElementById("battery-analytics-card");
@@ -1587,6 +1646,17 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
       const solarEl = document.getElementById("solar-val");
       if (solarEl) solarEl.innerHTML = solarV + ' <span class="card-unit">V</span>';
+
+      // Solar Power metric
+      const powerMw = extractPowerMw(latest);
+      const powerEl = document.getElementById("power-val");
+      if (powerEl) {
+        if (powerMw >= 1000) {
+          powerEl.innerHTML = (powerMw / 1000).toFixed(2) + ' <span class="card-unit">W</span>';
+        } else {
+          powerEl.innerHTML = Math.round(powerMw) + ' <span class="card-unit">mW</span>';
+        }
+      }
 
       const batteryEl = document.getElementById("battery-val");
       if (batteryEl) batteryEl.innerHTML = lipoV + ' <span class="card-unit">V</span>';
@@ -1695,73 +1765,72 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
       // 1. 24-Hour calculation
       const r24h = records.filter(r => new Date(r.timestamp).getTime() >= cutoff24h);
+      const elDrop24 = document.getElementById("est-drop-24h");
+      const elRun24  = document.getElementById("est-runtime-24h");
       if (r24h.length >= 2) {
         const first24 = r24h[0];
         const firstMv = first24.lipo_mv || Math.round((first24.lipo_v || 3.8) * 1000);
         const deltaMv = latestMv - firstMv; // positive = net charged, negative = discharged
-        const elDrop24 = document.getElementById("est-drop-24h");
-        const elRun24  = document.getElementById("est-runtime-24h");
         if (elDrop24) elDrop24.textContent = \`ΔV: \${deltaMv >= 0 ? "+" : ""}\${deltaMv} mV / 24h\`;
 
         if (elRun24) {
           if (deltaMv >= 0) {
-            elRun24.innerHTML = "<span style='color:#10b981;'>Self-Sustaining</span>";
+            elRun24.innerHTML = \`<span style="color:#10b981;">&infin; Days <span style="font-size:0.85rem;font-weight:normal;color:#8b949e;">(Float)</span></span>\`;
           } else {
             const dropPerDay = Math.abs(deltaMv);
-            const daysLeft = (headroomMv / dropPerDay).toFixed(1);
-            const hoursLeft = Math.round((headroomMv / dropPerDay) * 24);
-            elRun24.textContent = \`\${daysLeft} Days (\${hoursLeft}h)\`;
+            const daysLeft = dropPerDay > 0 ? (headroomMv / dropPerDay).toFixed(1) : "999";
+            elRun24.innerHTML = \`\${daysLeft} <span style="font-size:0.85rem;font-weight:normal;color:#8b949e;">Days</span>\`;
           }
         }
       } else {
-        const elRun24 = document.getElementById("est-runtime-24h");
-        if (elRun24) elRun24.textContent = "> 14 Days";
+        if (elRun24) elRun24.innerHTML = \`> 14 <span style="font-size:0.85rem;font-weight:normal;color:#8b949e;">Days</span>\`;
+        if (elDrop24) elDrop24.textContent = "Insufficient 24h baseline";
       }
 
       // 2. 7-Day Trend calculation
       const r7d = records.filter(r => new Date(r.timestamp).getTime() >= cutoff7d);
+      const elRun7 = document.getElementById("est-runtime-7d");
+      const elDrop7 = document.getElementById("est-drop-7d");
       if (r7d.length >= 2) {
         const first7 = r7d[0];
         const firstMv = first7.lipo_mv || Math.round((first7.lipo_v || 3.8) * 1000);
         const daySpan = Math.max(1, (new Date(latest.timestamp) - new Date(first7.timestamp)) / (24 * 3600 * 1000));
         const avgDailyDrop = (firstMv - latestMv) / daySpan;
 
-        const elRun7 = document.getElementById("est-runtime-7d");
-        const elDrop7 = document.getElementById("est-drop-7d");
         if (avgDailyDrop <= 0) {
-          if (elRun7) elRun7.innerHTML = "<span style='color:#10b981;'>Solar Float / Stable</span>";
+          if (elRun7) elRun7.innerHTML = \`<span style="color:#10b981;">&infin; Days <span style="font-size:0.85rem;font-weight:normal;color:#8b949e;">(Stable)</span></span>\`;
           if (elDrop7) elDrop7.textContent = \`Net Gain: +\${Math.abs(avgDailyDrop).toFixed(1)} mV/day\`;
         } else {
           const daysLeft = (headroomMv / avgDailyDrop).toFixed(1);
-          if (elRun7) elRun7.textContent = \`\${daysLeft} Days Autonomy\`;
+          if (elRun7) elRun7.innerHTML = \`\${daysLeft} <span style="font-size:0.85rem;font-weight:normal;color:#8b949e;">Days</span>\`;
           if (elDrop7) elDrop7.textContent = \`Avg drop: \${avgDailyDrop.toFixed(1)} mV/day\`;
         }
       } else {
-        const elRun7 = document.getElementById("est-runtime-7d");
-        if (elRun7) elRun7.textContent = "~ 21 Days Autonomy";
+        if (elRun7) elRun7.innerHTML = \`~ 21 <span style="font-size:0.85rem;font-weight:normal;color:#8b949e;">Days</span>\`;
+        if (elDrop7) elDrop7.textContent = "Estimated nominal autonomy";
       }
 
       // 3. 30-Day Autonomy calculation
       const r30d = records.filter(r => new Date(r.timestamp).getTime() >= cutoff30d);
+      const elRun30 = document.getElementById("est-runtime-30d");
+      const elDrop30 = document.getElementById("est-drop-30d");
       if (r30d.length >= 2) {
         const first30 = r30d[0];
         const firstMv = first30.lipo_mv || Math.round((first30.lipo_v || 3.8) * 1000);
         const daySpan = Math.max(1, (new Date(latest.timestamp) - new Date(first30.timestamp)) / (24 * 3600 * 1000));
         const avgDailyDrop = (firstMv - latestMv) / daySpan;
 
-        const elRun30 = document.getElementById("est-runtime-30d");
-        const elDrop30 = document.getElementById("est-drop-30d");
         if (avgDailyDrop <= 0) {
-          if (elRun30) elRun30.innerHTML = "<span style='color:#10b981;'>Infinite Autonomy</span>";
+          if (elRun30) elRun30.innerHTML = \`<span style="color:#10b981;">&infin; Days <span style="font-size:0.85rem;font-weight:normal;color:#8b949e;">(Float)</span></span>\`;
           if (elDrop30) elDrop30.textContent = "Daily Solar Replenishment";
         } else {
           const daysLeft = (headroomMv / avgDailyDrop).toFixed(1);
-          if (elRun30) elRun30.textContent = \`\${daysLeft} Days\`;
+          if (elRun30) elRun30.innerHTML = \`\${daysLeft} <span style="font-size:0.85rem;font-weight:normal;color:#8b949e;">Days</span>\`;
           if (elDrop30) elDrop30.textContent = \`30d Trend: \${avgDailyDrop.toFixed(1)} mV/day\`;
         }
       } else {
-        const elRun30 = document.getElementById("est-runtime-30d");
-        if (elRun30) elRun30.textContent = "Infinite (Solar Float)";
+        if (elRun30) elRun30.innerHTML = \`&infin; <span style="font-size:0.85rem;font-weight:normal;color:#8b949e;">Days (Solar)</span>\`;
+        if (elDrop30) elDrop30.textContent = "Solar float replenishment";
       }
 
       // Render Battery Timeline Chart
@@ -1775,10 +1844,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const data = records.map(r => r.lipo_v || (r.lipo_mv / 1000.0));
 
       const validValues = data.filter(v => v != null && !isNaN(v) && v > 0);
-      const minVal = validValues.length ? Math.min(...validValues) : 3.3;
+      const minVal = validValues.length ? Math.min(...validValues) : 3.7;
       const maxVal = validValues.length ? Math.max(...validValues) : 4.2;
-      const yMin = Math.max(0, Number((Math.floor(minVal * 10) / 10 - 0.2).toFixed(1)));
-      const yMax = Number((Math.ceil(maxVal * 10) / 10 + 0.2).toFixed(1));
+      const yMin = Math.max(minVal >= 3.0 ? 3.0 : 0, Number((Math.floor(minVal * 10) / 10 - 0.1).toFixed(1)));
+      const yMax = Math.max(4.2, Number((Math.ceil(maxVal * 10) / 10 + 0.1).toFixed(1)));
 
       if (batteryChart) batteryChart.destroy();
       batteryChart = new Chart(ctx, {
@@ -1799,12 +1868,22 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
           scales: {
             x: { grid: { color: "#21262d" }, ticks: { maxTicksLimit: 8, color: "#8b949e" } },
             y: { min: yMin, max: yMax, grid: { color: "#21262d" }, ticks: { color: "#8b949e" }, title: { display: true, text: "Battery (V)", color: "#10b981" } }
           },
           plugins: {
-            legend: { labels: { color: "#f0f6fc" } }
+            legend: { labels: { color: "#f0f6fc" } },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.parsed.y;
+                  const mv = Math.round(v * 1000);
+                  return \`LiPo Voltage: \${v.toFixed(3)} V (\${mv} mV)\`;
+                }
+              }
+            }
           }
         }
       });
@@ -1832,6 +1911,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
         let val = 0;
         if (metric === "solar") val = r.solar_v || (r.solar_mv / 1000.0);
+        else if (metric === "power") val = extractPowerMw(r);
         else if (metric === "lipo") val = r.lipo_v || (r.lipo_mv / 1000.0);
         else if (metric === "temp") {
           val = r.temp_c;
@@ -1851,12 +1931,16 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const maxSolar = Math.max(...records.map(r => r.solar_v || ((r.solar_mv || 0) / 1000.0)), 0);
       const solarYMax = computeVoltageMax(maxSolar);
 
+      const maxPower = Math.max(...records.map(r => extractPowerMw(r)), 0);
+      const powerYMax = computePowerMax(maxPower);
+
       const minTemp = Math.min(...records.map(r => (typeof r.temp_c === "number" ? r.temp_c : 100)), 20);
       const tempYMin = Math.max(0, Math.min(10, Math.floor((minTemp - 5) / 5) * 5));
       const tempYMax = Math.max(35, Math.ceil((maxRecordedTemp + 3) / 5) * 5);
 
       const metricLabels = {
         solar: { label: "Solar Panel Voltage (V)", unit: "V", yMin: 0, yMax: solarYMax },
+        power: { label: "Solar Panel Power (mW)", unit: "mW", yMin: 0, yMax: powerYMax },
         lipo:  { label: "LiPo Battery Voltage (V)", unit: "V", yMin: 3.0, yMax: 4.4 },
         temp:  { label: "Temperature (°C)", unit: "°C", yMin: tempYMin, yMax: tempYMax }
       };
@@ -1955,12 +2039,16 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       });
 
       const solarData = records.map(r => r.solar_v || (r.solar_mv / 1000.0));
+      const powerData = records.map(r => extractPowerMw(r));
       const lipoData  = records.map(r => r.lipo_v  || (r.lipo_mv  / 1000.0));
       const tempData  = records.map(r => r.temp_c);
 
       const maxSolar = Math.max(...solarData.filter(v => typeof v === "number" && !isNaN(v)), 0);
       const maxLipo  = Math.max(...lipoData.filter(v => typeof v === "number" && !isNaN(v)), 0);
       const voltYMax = computeVoltageMax(Math.max(maxSolar, maxLipo));
+
+      const maxPower = Math.max(...powerData.filter(v => typeof v === "number" && !isNaN(v)), 0);
+      const powerYMax = computePowerMax(maxPower);
 
       const maxTemp = Math.max(...tempData.filter(v => typeof v === "number" && !isNaN(v)), 0);
       const minTemp = Math.min(...tempData.filter(v => typeof v === "number" && !isNaN(v)), 20);
@@ -1980,6 +2068,15 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
               borderColor: "#f59e0b",
               backgroundColor: "rgba(245, 158, 11, 0.05)",
               yAxisID: "y",
+              tension: 0.2,
+              pointRadius: 1
+            },
+            {
+              label: "Solar Power (mW)",
+              data: powerData,
+              borderColor: "#38bdf8",
+              backgroundColor: "rgba(56, 189, 248, 0.05)",
+              yAxisID: "y2",
               tension: 0.2,
               pointRadius: 1
             },
@@ -2026,6 +2123,14 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
               grid: { drawOnChartArea: false },
               ticks: { color: "#ef4444" },
               title: { display: true, text: "Temperature (°C)", color: "#ef4444" }
+            },
+            y2: {
+              position: "right",
+              min: 0,
+              max: powerYMax,
+              grid: { drawOnChartArea: false },
+              ticks: { color: "#38bdf8" },
+              title: { display: true, text: "Power (mW)", color: "#38bdf8" }
             }
           },
           plugins: {
@@ -2357,6 +2462,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const lipoMv = Math.round(3800 + (solarMv > 1000 ? 350 : -50) + Math.sin((hour / 24) * 2 * Math.PI) * 80);
         // Sun inside closed container can reach 55°C - 62°C!
         const tempC = Number((28 + Math.sin(((hour - 9) / 24) * 2 * Math.PI) * 26 + (Math.random() * 0.8)).toFixed(1));
+        const mockPower = solarMv > 1000 ? Math.round((solarMv / 1000) * 320.5) : 0;
 
         // Simulate RF monitor data across 2.4 GHz spectrum & BLE
         const busiestCh = (i % 4 === 0) ? 6 : (i % 3 === 0 ? 1 : (i % 2 === 0 ? 11 : 3));
@@ -2373,6 +2479,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           timestamp: time.toISOString(),
           solar_mv: solarMv,
           solar_v: Number((solarMv / 1000).toFixed(2)),
+          power_mw: mockPower,
           lipo_mv: lipoMv,
           lipo_v: Number((lipoMv / 1000).toFixed(2)),
           temp_c: tempC,
@@ -2390,8 +2497,10 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
           wifi_max_packets: pkts,
           ble_unique_devices: bleDevs,
           raw_payload: JSON.stringify({
+            power_mw: mockPower,
             ina3221: {
-              ch1_solar: { voltage_v: solarMv / 1000, current_ma: solarMv > 1000 ? 320.5 : 0, power_mw: solarMv > 1000 ? (solarMv / 1000 * 320.5) : 0 },
+              ch1_solar: { voltage_v: solarMv / 1000, current_ma: solarMv > 1000 ? 320.5 : 0, power_mw: mockPower },
+              ch2_bat: { voltage_v: lipoMv / 1000, current_ma: solarMv > 1000 ? 150.2 : -45.0, power_mw: solarMv > 1000 ? Math.round(lipoMv / 1000 * 150.2) : Math.round(lipoMv / 1000 * -45.0) },
               ch3_load: { voltage_v: 3.3, current_ma: 42.1, power_mw: 138.9, resistance_ohm: 78.4 }
             }
           })

@@ -231,7 +231,20 @@ export class Database {
       .bind(stationId, cutoffDate)
       .all<MeasurementRecord>();
 
-    return result.results || [];
+    const rows = result.results || [];
+    return rows.map(r => {
+      let pMw = r.power_mw ?? null;
+      if (pMw === null && r.raw_payload) {
+        try {
+          const raw = typeof r.raw_payload === "string" ? JSON.parse(r.raw_payload) : r.raw_payload;
+          pMw = raw?.power_mw ?? raw?.ina3221?.ch1_solar?.power_mw ?? null;
+        } catch (_) {}
+      }
+      return {
+        ...r,
+        power_mw: pMw ?? 0
+      };
+    });
   }
 
   async updateStationSettings(

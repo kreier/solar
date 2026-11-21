@@ -59,9 +59,9 @@ export default {
 
       // ESP Web Tools Manifests for Web Serial Flashing
       if (path === "/manifest.json" || path.startsWith("/manifest-")) {
-        const isCanary = path.includes("canary") || url.searchParams.get("version") === "1.1.4-canary";
+        const isCanary = path.includes("canary") || url.searchParams.get("version") === "1.1.7-canary";
         const isUpdate = path.includes("update") || url.searchParams.get("mode") === "update";
-        const versionStr = isCanary ? (env.CANARY_VERSION || "1.1.4-canary") : (env.STABLE_VERSION || "1.1.4");
+        const versionStr = isCanary ? (env.CANARY_VERSION || "1.1.7-canary") : (env.STABLE_VERSION || "1.1.5");
 
         const builds = isUpdate
           ? [

@@ -12,7 +12,7 @@
 #include "monitor_manager.h"
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.1.5"
+#define FIRMWARE_VERSION "1.1.7"
 #endif
 
 struct BufferedSample {
@@ -20,10 +20,14 @@ struct BufferedSample {
     int solar_mv;
     int lipo_mv;
     float temp_c;
+    float power_mw;
     bool has_ina;
     float ch1_solar_v;
     float ch1_solar_ma;
     float ch1_solar_mw;
+    float ch2_bat_v;
+    float ch2_bat_ma;
+    float ch2_bat_mw;
     float ch3_load_v;
     float ch3_load_ma;
     float ch3_load_mw;
@@ -228,6 +232,8 @@ public:
         doc["lipo_v"]   = readings.lipo_v;
         doc["temp_c"]   = readings.temp_c;
         doc["temp_mv"]  = readings.temp_mv;
+        float power_mw  = inaReadings.present ? inaReadings.ch1_solar_mw : 0.0f;
+        doc["power_mw"] = serialized(String(power_mw, 2));
 
         // Raw ADC samples
         JsonObject rawObj = doc["raw_adc"].to<JsonObject>();
@@ -235,7 +241,7 @@ public:
         rawObj["pin_solar"] = readings.raw_pin_solar;
         rawObj["pin_lipo"]  = readings.raw_pin_lipo;
 
-        // INA3221 Sensor (CH1 Solar, CH3 Load)
+        // INA3221 Sensor (CH1 Solar, CH2 Battery, CH3 Load)
         if (inaReadings.present) {
             JsonObject inaObj = doc["ina3221"].to<JsonObject>();
 
@@ -243,6 +249,11 @@ public:
             ch1["voltage_v"] = serialized(String(inaReadings.ch1_solar_v, 3));
             ch1["current_ma"] = serialized(String(inaReadings.ch1_solar_ma, 2));
             ch1["power_mw"] = serialized(String(inaReadings.ch1_solar_mw, 2));
+
+            JsonObject ch2 = inaObj["ch2_bat"].to<JsonObject>();
+            ch2["voltage_v"] = serialized(String(inaReadings.ch2_bat_v, 3));
+            ch2["current_ma"] = serialized(String(inaReadings.ch2_bat_ma, 2));
+            ch2["power_mw"] = serialized(String(inaReadings.ch2_bat_mw, 2));
 
             JsonObject ch3 = inaObj["ch3_load"].to<JsonObject>();
             ch3["voltage_v"] = serialized(String(inaReadings.ch3_load_v, 3));
@@ -272,6 +283,7 @@ public:
                 s["solar_mv"] = batchSamples[i].solar_mv;
                 s["lipo_mv"] = batchSamples[i].lipo_mv;
                 s["temp_c"] = batchSamples[i].temp_c;
+                s["power_mw"] = serialized(String(batchSamples[i].power_mw, 2));
 
                 if (batchSamples[i].has_ina) {
                     JsonObject sIna = s["ina3221"].to<JsonObject>();
@@ -279,6 +291,11 @@ public:
                     bCh1["voltage_v"] = serialized(String(batchSamples[i].ch1_solar_v, 3));
                     bCh1["current_ma"] = serialized(String(batchSamples[i].ch1_solar_ma, 2));
                     bCh1["power_mw"] = serialized(String(batchSamples[i].ch1_solar_mw, 2));
+
+                    JsonObject bCh2 = sIna["ch2_bat"].to<JsonObject>();
+                    bCh2["voltage_v"] = serialized(String(batchSamples[i].ch2_bat_v, 3));
+                    bCh2["current_ma"] = serialized(String(batchSamples[i].ch2_bat_ma, 2));
+                    bCh2["power_mw"] = serialized(String(batchSamples[i].ch2_bat_mw, 2));
 
                     JsonObject bCh3 = sIna["ch3_load"].to<JsonObject>();
                     bCh3["voltage_v"] = serialized(String(batchSamples[i].ch3_load_v, 3));

@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.7-canary] - 2026-11-21
+
+### Added & Enhanced
+- **INA3221 Channel 2 Telemetry & Solar Power Standard Metric**:
+  - Sample and ingest INA3221 Channel 2 (Battery/Aux: bus voltage, shunt current, power) alongside Channel 1 (Solar) and Channel 3 (Load).
+  - Promoted Solar Power (`power_mw`) to a primary standard telemetry metric across all nodes (submits `0.00` if node is not equipped with INA3221).
+  - Added live preview of INA3221 Channel 2 on the Soft-AP setup web portal (`192.168.4.1`).
+  - Added dedicated Solar Power metric card to the top overview grid in Web UI (`Web v1.1.7`).
+  - Integrated Solar Power into the **3-Day Diurnal Overlay (0:00–24:00)** with interactive toggle (`Solar Power`) and dynamic Y-axis auto-scaling (`computePowerMax`).
+  - Integrated Solar Power into the **Continuous Telemetry Timeline (Last 3 Days)** with a dedicated right Y-axis (`y2`) and teal curve.
+- **LiPo Battery Autonomy & Voltage Trends Reimplementation**:
+  - Restored `#battery-analytics-card` with robust visibility logic so it is never hidden whenever valid battery readings are present.
+  - Formatted 1-day, 7-day, and 30-day runtime estimates as clear, prominent numbers (e.g., `14.2 Days`, `∞ Days (Float)`).
+  - Collapsible battery voltage trend graph: collapsed by default with an interactive `📈 Show Trend Graph` toggle button.
+  - Added selectable multi-range buttons for **1 Day, 7 Days, 30 Days, and 365 Days** (1 Year).
+  - Configured dynamic Y-axis min/max scaling tightly framed around LiPo operating ranges (floored at 3.0V baseline) and rich tooltips displaying exact millivolts and volts (`3.921 V (3921 mV)`).
+- **Web Firmware Installer & OTA Ingestion**:
+  - Added `v1.1.7-canary` to Web Serial Flasher and manifest catalogs (`manifest-canary.json`, `manifest-canary-update.json`).
+  - Updated Cloudflare Worker OTA routing to serve `1.1.7-canary` binaries to canary-enrolled nodes.
+
 ## [1.1.6-canary] - 2026-11-21
 
 ### Fixed & Added

@@ -23,6 +23,11 @@ struct Ina3221Readings {
     float ch1_solar_ma;      // Current in mA
     float ch1_solar_mw;      // Power in mW (V * mA)
 
+    // Channel 2: Battery / Aux
+    float ch2_bat_v;         // Bus voltage in Volts
+    float ch2_bat_ma;        // Current in mA
+    float ch2_bat_mw;        // Power in mW (V * mA)
+
     // Channel 3: Load
     float ch3_load_v;        // Bus voltage in Volts
     float ch3_load_ma;       // Current in mA
@@ -108,7 +113,19 @@ public:
         if (res.ch1_solar_ma < 0.0f) res.ch1_solar_ma = 0.0f;
         res.ch1_solar_mw = res.ch1_solar_v * res.ch1_solar_ma;
 
-        // 2. Channel 3: Connected Load
+        // 2. Channel 2: Battery / Aux Channel
+        int16_t ch2BusRaw = readRegister16(INA3221_REG_CH2_BUS);
+        int16_t ch2ShuntRaw = readRegister16(INA3221_REG_CH2_SHUNT);
+
+        res.ch2_bat_v = ((ch2BusRaw >> 3) * 0.008f);
+        if (res.ch2_bat_v < 0.0f) res.ch2_bat_v = 0.0f;
+
+        float ch2ShuntMv = (ch2ShuntRaw >> 3) * 0.040f;
+        res.ch2_bat_ma = ch2ShuntMv / _r_shunt;
+        if (res.ch2_bat_ma < 0.0f) res.ch2_bat_ma = 0.0f;
+        res.ch2_bat_mw = res.ch2_bat_v * res.ch2_bat_ma;
+
+        // 3. Channel 3: Connected Load
         int16_t ch3BusRaw = readRegister16(INA3221_REG_CH3_BUS);
         int16_t ch3ShuntRaw = readRegister16(INA3221_REG_CH3_SHUNT);
 

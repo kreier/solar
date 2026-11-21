@@ -40,6 +40,11 @@ export interface Ina3221Metrics {
     current_ma?: number;
     power_mw?: number;
   };
+  ch2_bat?: {
+    voltage_v?: number;
+    current_ma?: number;
+    power_mw?: number;
+  };
   ch3_load?: {
     voltage_v?: number;
     current_ma?: number;
@@ -53,6 +58,7 @@ export interface BufferedBatchSample {
   solar_mv: number;
   lipo_mv: number;
   temp_c: number;
+  power_mw?: number;
   ina3221?: Ina3221Metrics;
 }
 
@@ -76,6 +82,7 @@ export interface TelemetryPayload {
   lipo_v?: number;
   temp_c: number;
   temp_mv?: number;
+  power_mw?: number;
   raw_adc?: {
     pin32?: number;
     pin34?: number;
@@ -151,4 +158,5 @@ export interface MeasurementRecord {
   ble_unique_devices?: number | null;
   wifi_channels_json?: string | null;
   raw_payload: string | null;
+  power_mw?: number | null;
 }

@@ -36,6 +36,9 @@ int32_t active_lipo_sum = 0;
 float active_ch1_v_sum = 0.0f;
 float active_ch1_ma_sum = 0.0f;
 float active_ch1_mw_sum = 0.0f;
+float active_ch2_v_sum = 0.0f;
+float active_ch2_ma_sum = 0.0f;
+float active_ch2_mw_sum = 0.0f;
 float active_ch3_v_sum = 0.0f;
 float active_ch3_ma_sum = 0.0f;
 float active_ch3_mw_sum = 0.0f;
@@ -289,9 +292,11 @@ void runCycle() {
             Serial.println(F("[Sensors] LiPo Battery:Disabled in configuration"));
         }
         if (inaData.present) {
-            Serial.printf("[INA3221] CH1 Solar: %.3f V, %.1f mA, %.1f mW\n",
+            Serial.printf("[INA3221] CH1 Solar:   %.3f V, %.1f mA, %.1f mW\n",
                           inaData.ch1_solar_v, inaData.ch1_solar_ma, inaData.ch1_solar_mw);
-            Serial.printf("[INA3221] CH3 Load:  %.3f V, %.1f mA, %.1f mW (Res: %.1f Ohm)\n",
+            Serial.printf("[INA3221] CH2 Battery: %.3f V, %.1f mA, %.1f mW\n",
+                          inaData.ch2_bat_v, inaData.ch2_bat_ma, inaData.ch2_bat_mw);
+            Serial.printf("[INA3221] CH3 Load:    %.3f V, %.1f mA, %.1f mW (Res: %.1f Ohm)\n",
                           inaData.ch3_load_v, inaData.ch3_load_ma, inaData.ch3_load_mw, inaData.ch3_load_res_ohm);
         }
         Serial.printf("[Benchmark] Measure duration: %lu ms\n", (unsigned long)timer.getMeasureDuration());
@@ -310,11 +315,15 @@ void runCycle() {
             rtc_samples[rtc_sample_count].solar_mv   = readings.solar_mv;
             rtc_samples[rtc_sample_count].lipo_mv    = readings.lipo_mv;
             rtc_samples[rtc_sample_count].temp_c     = readings.temp_c;
+            rtc_samples[rtc_sample_count].power_mw   = inaData.present ? inaData.ch1_solar_mw : 0.0f;
             rtc_samples[rtc_sample_count].has_ina    = inaData.present;
             if (inaData.present) {
                 rtc_samples[rtc_sample_count].ch1_solar_v      = inaData.ch1_solar_v;
                 rtc_samples[rtc_sample_count].ch1_solar_ma     = inaData.ch1_solar_ma;
                 rtc_samples[rtc_sample_count].ch1_solar_mw     = inaData.ch1_solar_mw;
+                rtc_samples[rtc_sample_count].ch2_bat_v        = inaData.ch2_bat_v;
+                rtc_samples[rtc_sample_count].ch2_bat_ma       = inaData.ch2_bat_ma;
+                rtc_samples[rtc_sample_count].ch2_bat_mw       = inaData.ch2_bat_mw;
                 rtc_samples[rtc_sample_count].ch3_load_v       = inaData.ch3_load_v;
                 rtc_samples[rtc_sample_count].ch3_load_ma      = inaData.ch3_load_ma;
                 rtc_samples[rtc_sample_count].ch3_load_mw      = inaData.ch3_load_mw;
@@ -349,6 +358,9 @@ void runCycle() {
             active_ch1_v_sum += inaData.ch1_solar_v;
             active_ch1_ma_sum += inaData.ch1_solar_ma;
             active_ch1_mw_sum += inaData.ch1_solar_mw;
+            active_ch2_v_sum += inaData.ch2_bat_v;
+            active_ch2_ma_sum += inaData.ch2_bat_ma;
+            active_ch2_mw_sum += inaData.ch2_bat_mw;
             active_ch3_v_sum += inaData.ch3_load_v;
             active_ch3_ma_sum += inaData.ch3_load_ma;
             active_ch3_mw_sum += inaData.ch3_load_mw;
@@ -358,9 +370,10 @@ void runCycle() {
         // If fewer than 10 samples (10 minutes not reached) and not initial cycle after reset, return to Light Sleep
         if (active_sample_count < 10 && !isInitialCycle) {
             if (config.power_mode == 2 || config.power_mode == 3) {
-                Serial.printf("[Power] %s: Sample #%d/10 recorded (Temp: %.1fC, Sol: %dmV, Bat: %dmV). Sleeping 60s...\n",
+                float curPwr = inaData.present ? inaData.ch1_solar_mw : 0.0f;
+                Serial.printf("[Power] %s: Sample #%d/10 recorded (Temp: %.1fC, Sol: %dmV, Bat: %dmV, Pwr: %.1fmW). Sleeping 60s...\n",
                               (config.power_mode == 3) ? "Monitor" : "Verbose",
-                              active_sample_count, readings.temp_c, readings.solar_mv, readings.lipo_mv);
+                              active_sample_count, readings.temp_c, readings.solar_mv, readings.lipo_mv, curPwr);
             }
             timer.finalizeAndSaveForNextCycle();
             SleepManager::enterLightSleep(60);
@@ -386,6 +399,9 @@ void runCycle() {
             inaData.ch1_solar_v = active_ch1_v_sum / (float)active_sample_count;
             inaData.ch1_solar_ma = active_ch1_ma_sum / (float)active_sample_count;
             inaData.ch1_solar_mw = active_ch1_mw_sum / (float)active_sample_count;
+            inaData.ch2_bat_v = active_ch2_v_sum / (float)active_sample_count;
+            inaData.ch2_bat_ma = active_ch2_ma_sum / (float)active_sample_count;
+            inaData.ch2_bat_mw = active_ch2_mw_sum / (float)active_sample_count;
             inaData.ch3_load_v = active_ch3_v_sum / (float)active_sample_count;
             inaData.ch3_load_ma = active_ch3_ma_sum / (float)active_sample_count;
             inaData.ch3_load_mw = active_ch3_mw_sum / (float)active_sample_count;
@@ -400,6 +416,9 @@ void runCycle() {
         active_ch1_v_sum = 0.0f;
         active_ch1_ma_sum = 0.0f;
         active_ch1_mw_sum = 0.0f;
+        active_ch2_v_sum = 0.0f;
+        active_ch2_ma_sum = 0.0f;
+        active_ch2_mw_sum = 0.0f;
         active_ch3_v_sum = 0.0f;
         active_ch3_ma_sum = 0.0f;
         active_ch3_mw_sum = 0.0f;

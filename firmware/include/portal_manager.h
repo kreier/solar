@@ -115,6 +115,7 @@ public:
             if (inaData.present) {
                 html += F("<div style='margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);'><div class='sub-title' style='color:var(--blue);'>INA3221 Live (I2C 0x40)</div><div class='live-grid'>");
                 html += "<div class='val-box'><div class='val-num' style='color:#f59e0b;'>" + String(inaData.ch1_solar_v, 2) + "V / " + String(inaData.ch1_solar_ma, 0) + "mA</div><div class='val-lbl'>CH1 Solar (" + String(inaData.ch1_solar_mw, 0) + " mW)</div></div>";
+                html += "<div class='val-box'><div class='val-num' style='color:#10b981;'>" + String(inaData.ch2_bat_v, 2) + "V / " + String(inaData.ch2_bat_ma, 0) + "mA</div><div class='val-lbl'>CH2 Battery (" + String(inaData.ch2_bat_mw, 0) + " mW)</div></div>";
                 html += "<div class='val-box'><div class='val-num' style='color:#38bdf8;'>" + String(inaData.ch3_load_v, 2) + "V / " + String(inaData.ch3_load_ma, 0) + "mA</div><div class='val-lbl'>CH3 Load (" + String(inaData.ch3_load_mw, 0) + " mW &bull; " + String(inaData.ch3_load_res_ohm, 0) + " &Omega;)</div></div>";
                 html += F("</div></div>");
             }
