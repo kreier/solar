@@ -14,15 +14,34 @@ public:
         WiFi.disconnect(true);
         WiFi.mode(WIFI_AP_STA);
 
-        String apName = "Solar-Setup";
-        if (strlen(config.station_id) > 0) {
-            apName = "Solar-" + String(config.station_id);
-        }
+        String apName = "Solar Phy My Hung";
 
         const char *apPass = "12345678";
         bool apOk = WiFi.softAP(apName.c_str(), apPass);
         (void)apOk;
         IPAddress apIp = WiFi.softAPIP();
+
+        // Register Wi-Fi AP client events for verbose serial reporting
+        WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+            if (event == ARDUINO_EVENT_WIFI_AP_STACONNECTED) {
+                Serial.println(F("\n=================================================="));
+                Serial.println(F("   [Soft-AP] >>> CLIENT CONNECTED TO SOFT-AP! <<<"));
+                Serial.printf("   Station MAC   : %02X:%02X:%02X:%02X:%02X:%02X\n",
+                              info.wifi_ap_staconnected.mac[0], info.wifi_ap_staconnected.mac[1],
+                              info.wifi_ap_staconnected.mac[2], info.wifi_ap_staconnected.mac[3],
+                              info.wifi_ap_staconnected.mac[4], info.wifi_ap_staconnected.mac[5]);
+                Serial.printf("   Station AID   : %d\n", info.wifi_ap_staconnected.aid);
+                Serial.printf("   Total Clients : %d\n", WiFi.softAPgetStationNum());
+                Serial.println(F("==================================================\n"));
+            } else if (event == ARDUINO_EVENT_WIFI_AP_STADISCONNECTED) {
+                Serial.println(F("\n[Soft-AP] Client disconnected from Soft-AP."));
+                Serial.printf("   Station MAC   : %02X:%02X:%02X:%02X:%02X:%02X\n",
+                              info.wifi_ap_stadisconnected.mac[0], info.wifi_ap_stadisconnected.mac[1],
+                              info.wifi_ap_stadisconnected.mac[2], info.wifi_ap_stadisconnected.mac[3],
+                              info.wifi_ap_stadisconnected.mac[4], info.wifi_ap_stadisconnected.mac[5]);
+                Serial.printf("   Total Clients : %d\n\n", WiFi.softAPgetStationNum());
+            }
+        });
 
         Serial.println(F("\n=================================================="));
         Serial.println(F("   STARTING SOFT-AP CONFIGURATION PORTAL"));
@@ -30,16 +49,24 @@ public:
         Serial.printf("[Portal] Soft-AP SSID     : %s\n", apName.c_str());
         Serial.printf("[Portal] Soft-AP Password : %s\n", apPass);
         Serial.printf("[Portal] Web Setup URL    : http://%s\n", apIp.toString().c_str());
-        Serial.printf("[Portal] Initial Timeout  : %u seconds (pauses when client connects)\n", timeoutSeconds);
+        Serial.printf("[Portal] Initial Timeout  : %lu seconds (pauses when client connects)\n", (unsigned long)timeoutSeconds);
         Serial.println(F("==================================================\n"));
 
         WebServer server(80);
+        const char *headerKeys[] = {"User-Agent"};
+        server.collectHeaders(headerKeys, 1);
+
         bool configSaved = false;
         uint32_t remainingMs = timeoutSeconds * 1000;
         uint32_t lastTickMs = millis();
 
         // 1. Root Setup Page Handler
         server.on("/", HTTP_GET, [&]() {
+            Serial.println(F("[Portal] >>> Client opened configuration page (GET /) <<<"));
+            Serial.printf("[Portal] Client IP        : %s\n", server.client().remoteIP().toString().c_str());
+            if (server.hasHeader("User-Agent")) {
+                Serial.printf("[Portal] Client User-Agent: %s\n", server.header("User-Agent").c_str());
+            }
             AdcReadings readings = adc.readSensors(
                 config.pin_temp, config.pin_solar, config.pin_lipo,
                 config.temp_source, config.enable_solar, config.enable_lipo,
@@ -116,7 +143,10 @@ public:
             html += F("<label>Primary Wi-Fi SSID</label>");
             html += "<input type='text' id='wf_ssid' name='wifi_ssid' value='" + String(config.wifi_ssid) + "' required>";
             html += F("<label>Primary Wi-Fi Password</label>");
+            html += F("<div style='display:flex;gap:0.4rem;align-items:center;'>");
             html += "<input type='password' id='wf_pass' name='wifi_pass' value='" + String(config.wifi_pass) + "'>";
+            html += F("<button type='button' class='btn-sm' onclick='togglePw(\"wf_pass\",this)'>👁️ Show</button>");
+            html += F("</div>");
 
             html += F("<div style='margin-top:0.75rem;display:flex;align-items:center;gap:0.75rem;'>");
             html += F("<button type='button' class='btn-sm' onclick='testWifiConnection()'>⚡ Test Connection</button>");
@@ -126,7 +156,10 @@ public:
             html += F("<label style='margin-top:1rem;'>Backup Wi-Fi SSID (Optional)</label>");
             html += "<input type='text' name='bkp_ssid' value='" + String(config.backup_ssid) + "'>";
             html += F("<label>Backup Wi-Fi Password</label>");
-            html += "<input type='password' name='bkp_pass' value='" + String(config.backup_pass) + "'>";
+            html += F("<div style='display:flex;gap:0.4rem;align-items:center;'>");
+            html += "<input type='password' id='bkp_pass' name='bkp_pass' value='" + String(config.backup_pass) + "'>";
+            html += F("<button type='button' class='btn-sm' onclick='togglePw(\"bkp_pass\",this)'>👁️ Show</button>");
+            html += F("</div>");
 
             // Fixed IP Settings
             html += F("<label class='checkbox-label' style='margin-top:1rem;'>");
@@ -195,7 +228,10 @@ public:
             html += F("<label>Physical Location</label>");
             html += "<input type='text' name='location' value='" + String(config.location) + "' required>";
             html += F("<label>Cloudflare MASTER_PHRASE</label>");
-            html += "<input type='password' name='master_phrase' value='" + String(config.master_phrase) + "' placeholder='solar-fleet-bootstrap-2026'>";
+            html += F("<div style='display:flex;gap:0.4rem;align-items:center;'>");
+            html += "<input type='password' id='master_phrase' name='master_phrase' value='" + String(config.master_phrase) + "' placeholder='solar-fleet-bootstrap-2026'>";
+            html += F("<button type='button' class='btn-sm' onclick='togglePw(\"master_phrase\",this)'>👁️ Show</button>");
+            html += F("</div>");
             html += F("<label>Cloudflare Worker URL</label>");
             html += "<input type='text' name='worker_url' value='" + String(config.worker_url) + "' required>";
             html += F("</div>");
@@ -205,6 +241,16 @@ public:
 
             // JavaScript for live Wi-Fi testing & dynamic fields
             html += F("<script>");
+            html += F("function togglePw(id, btn) {");
+            html += F("  var el = document.getElementById(id);");
+            html += F("  if (el.type === 'password') {");
+            html += F("    el.type = 'text';");
+            html += F("    btn.textContent = '🔒 Hide';");
+            html += F("  } else {");
+            html += F("    el.type = 'password';");
+            html += F("    btn.textContent = '👁️ Show';");
+            html += F("  }");
+            html += F("}");
             html += F("function toggleStaticFields() {");
             html += F("  var chk = document.getElementById('use_static_ip').checked;");
             html += F("  document.getElementById('static_ip_fields').style.display = chk ? 'block' : 'none';");

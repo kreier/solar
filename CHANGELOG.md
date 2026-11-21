@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.6-canary] - 2026-11-21
+
+### Fixed & Added
+- **Permanent Fix for ESP32-S3 USB Update (`invalid header 0xffffffff`)**:
+  - Identified root cause in ESP Web Tools: when a device does not implement Improv Serial, `new_install_prompt_erase: false` caused ESP Web Tools to execute a silent full chip erase without prompting, erasing the second-stage bootloader at `0x0000` on ESP32-S3 and leaving unwritten flash (`0xFFFFFFFF`).
+  - Switched update manifests (`manifest-update.json` and `manifest-canary-update.json`) to `new_install_prompt_erase: true` so users are prompted to keep their flash data intact.
+  - Added chip-specific bootloaders (`bootloader-${chip}.bin`) and partition tables (`partitions-${chip}.bin`) to all update manifests:
+    - ESP32: bootloader at `0x1000`, partitions at `0x8000`, otadata at `0xe000`, application at `0x10000`.
+    - ESP32-S3: bootloader at `0x0000`, partitions at `0x8000`, otadata at `0xe000`, application at `0x10000`.
+    - ESP32-C5/C6: bootloader at `0x0000`, partitions at `0x8000`, otadata at `0xe000`, application at `0x10000`.
+  - NVS storage (`0x9000` to `0xdfff`) remains completely untouched by all update parts, preserving all Wi-Fi credentials, tokens, and station settings.
+- **Soft-AP Verbose Serial Diagnostics on Client Connection**:
+  - Added Wi-Fi event handler in `portal_manager.h` capturing `ARDUINO_EVENT_WIFI_AP_STACONNECTED` and `ARDUINO_EVENT_WIFI_AP_STADISCONNECTED`.
+  - Serial console immediately logs connection banners with the connected device's MAC address, AID, and active station count.
+  - Root HTTP handler (`/`) captures client IP and incoming `User-Agent` string, outputting the client computer/device operating system and browser details to the serial console.
+- **Renamed Soft-AP SSID to "Solar Phy My Hung"**:
+  - Configuration access point SSID updated to `Solar Phy My Hung` with default password `12345678`.
+- **Show/Hide Password Toggle Buttons**:
+  - Added interactive `👁️ Show` / `🔒 Hide` buttons in the Soft-AP setup portal for Primary Wi-Fi Password, Backup Wi-Fi Password, and Cloudflare `MASTER_PHRASE`.
+- **Canary Channel Bump**:
+  - Bumped edge canary release channel to `v1.1.6-canary` on Cloudflare Worker (`solar.kreier.workers.dev`) and web installers.
+
 ## [1.1.5] - 2026-11-21
 
 ### Added & Changed

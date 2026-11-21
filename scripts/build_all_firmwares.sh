@@ -47,6 +47,10 @@ build_target() {
         0xe000 "$BOOT_APP0" \
         "$ota_offset" "$app_bin"
 
+    # Save chip-specific bootloader and partitions
+    cp "$bootloader_bin" "$OUT_DIR/bootloader-${chip}.bin"
+    cp "$partitions_bin" "$OUT_DIR/partitions-${chip}.bin"
+
     # Create unversioned convenience links
     if [ "$ver" = "1.1.5" ]; then
         cp "$dest_app" "$OUT_DIR/firmware-${chip}.bin"
@@ -73,12 +77,19 @@ cp "$OUT_DIR/firmware-esp32c6-v1.1.5.bin" "$OUT_DIR/firmware-esp32c5-v1.1.5.bin"
 cp "$OUT_DIR/firmware-esp32c6-merged-v1.1.5.bin" "$OUT_DIR/firmware-esp32c5-merged-v1.1.5.bin"
 cp "$OUT_DIR/firmware-esp32c5-v1.1.5.bin" "$OUT_DIR/firmware-esp32c5.bin"
 cp "$OUT_DIR/firmware-esp32c5-merged-v1.1.5.bin" "$OUT_DIR/firmware-esp32c5-merged.bin"
+cp "$OUT_DIR/bootloader-esp32c6.bin" "$OUT_DIR/bootloader-esp32c5.bin"
+cp "$OUT_DIR/partitions-esp32c6.bin" "$OUT_DIR/partitions-esp32c5.bin"
 
-# Mirror to canary channel aliases
-for ch in esp32 esp32s3 esp32c5 esp32c6; do
-    cp "$OUT_DIR/firmware-${ch}-v1.1.5.bin" "$OUT_DIR/firmware-${ch}-v1.1.5-canary.bin"
-    cp "$OUT_DIR/firmware-${ch}-merged-v1.1.5.bin" "$OUT_DIR/firmware-${ch}-merged-v1.1.5-canary.bin"
-done
+echo "=========================================="
+echo " BUILDING FIRMWARE v1.1.6-canary"
+echo "=========================================="
+build_target "esp32dev" "esp32" "1.1.6-canary" 0x10000 0x1000
+build_target "esp32s3" "esp32s3" "1.1.6-canary" 0x10000 0x0
+build_target "esp32c5" "esp32c6" "1.1.6-canary" 0x10000 0x0
+
+# Create C5 convenience aliases for 1.1.6-canary
+cp "$OUT_DIR/firmware-esp32c6-v1.1.6-canary.bin" "$OUT_DIR/firmware-esp32c5-v1.1.6-canary.bin"
+cp "$OUT_DIR/firmware-esp32c6-merged-v1.1.6-canary.bin" "$OUT_DIR/firmware-esp32c5-merged-v1.1.6-canary.bin"
 
 echo "=========================================="
 echo " ALL FIRMWARES BUILT & MERGED SUCCESSFULLY"

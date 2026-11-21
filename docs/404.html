@@ -751,8 +751,8 @@
             <div>
               <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;color:var(--text-muted);">Firmware Release Channel:</label>
               <select id="flasherVerSelect" style="width:100%;" onchange="updateFlasherManifest()">
+                <option value="1.1.6-canary">v1.1.6 Canary (S3 USB Update Bootloader, Soft-AP Verbose, Phy My Hung)</option>
                 <option value="1.1.5" selected>v1.1.5 Stable (Production: Reset OTA, Auto-scale, INA3221 3-CH)</option>
-                <option value="1.1.5-canary">v1.1.5 Canary (Latest edge release)</option>
                 <option value="1.1.4">v1.1.4 Stable</option>
                 <option value="1.0.2">v1.0.2 Stable (Legacy)</option>
               </select>
@@ -777,7 +777,7 @@
               <input type="radio" name="flashModeRadio" value="update" style="margin-top: 0.2rem;">
               <div>
                 <div class="mode-title">⚡ Update Firmware Only (Keep Settings &amp; Data)</div>
-                <div class="mode-desc">Flashes only application partition (0x10000). Preserves Wi-Fi credentials, device token, and NVS configuration.</div>
+                <div class="mode-desc">Flashes bootloader, partitions, otadata, and app. Preserves Wi-Fi credentials, tokens, and NVS configuration. In the installer prompt, leave <b>"Erase device" unchecked</b>.</div>
               </div>
             </label>
           </div>
