@@ -465,7 +465,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="title-area">
         <h1>
           <span>☀️</span> Solar Telemetry Fleet
-          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.9</span>
+          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.10</span>
         </h1>
         <div class="subtitle" id="station-subtitle">Connecting to Cloudflare D1 Edge Ingestion...</div>
       </div>
@@ -683,7 +683,11 @@ export function renderDashboardHtml(workerUrl?: string): string {
           </div>
           <div class="subtitle" id="rf-subtitle">Today's 2.4 GHz channels (1–13, BLE) and 7-day diurnal trend comparison</div>
         </div>
-        <div style="display:flex; align-items:center; gap:0.75rem;" onclick="event.stopPropagation()">
+        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;" onclick="event.stopPropagation()">
+          <div class="btn-group" id="rf-mode-toggle" title="Toggle between 30-minute Peak and Average visualization">
+            <button class="active" data-rf-mode="peak" onclick="setRfDisplayMode('peak')">Peak</button>
+            <button data-rf-mode="avg" onclick="setRfDisplayMode('avg')">Average</button>
+          </div>
           <select id="rf-palette-select" class="palette-select" onchange="changeRfPalette(this.value)" title="Heatmap Color Scheme">
             <option value="inferno">Inferno</option>
             <option value="viridis">Viridis</option>
@@ -707,19 +711,19 @@ export function renderDashboardHtml(workerUrl?: string): string {
         <div class="bench-grid" style="margin-top: 1rem;">
           <div class="bench-item">
             <div class="bench-val" id="rf-busiest-ch">--</div>
-            <div class="bench-label">Busiest Channel</div>
+            <div class="bench-label" id="rf-busiest-ch-label">Busiest Channel</div>
           </div>
           <div class="bench-item">
             <div class="bench-val" id="rf-max-pkts">-- pkts</div>
-            <div class="bench-label">Peak Wi-Fi Activity</div>
+            <div class="bench-label" id="rf-max-pkts-label">Peak Wi-Fi Activity</div>
           </div>
           <div class="bench-item">
             <div class="bench-val" id="rf-ble-count">--</div>
-            <div class="bench-label">Max BLE Devices</div>
+            <div class="bench-label" id="rf-ble-count-label">Max BLE Devices</div>
           </div>
           <div class="bench-item">
             <div class="bench-val" id="rf-cleanest-ch">--</div>
-            <div class="bench-label">Cleanest Channel</div>
+            <div class="bench-label" id="rf-cleanest-ch-label">Cleanest Channel</div>
           </div>
         </div>
       </div>
@@ -729,7 +733,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <p>ESP32 Solar Telemetry Fleet &bull; Minimal SPIFFS &bull; Dual OTA &bull; Cloudflare Edge &amp; D1 Database</p>
       <p>
         <a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull;
-        <span>Website v1.1.9</span> &bull;
+        <span>Website v1.1.10</span> &bull;
         <span>Firmware v<span id="fw-version">1.1.5</span> (Stable)</span> &bull;
         <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.9 Canary</span> &bull;
         <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a>
@@ -3307,6 +3311,11 @@ let currentFlashMode = "clean";
     // ==========================================
     let currentRfPalette = "amber";
     let isRfCollapsed = false;
+    let currentRfMode = "peak";
+    try {
+      const savedRfMode = localStorage.getItem("solar_rf_mode");
+      if (savedRfMode === "peak" || savedRfMode === "avg") currentRfMode = savedRfMode;
+    } catch (_) {}
     let cachedRfRecords = [];
     let rfCanvasInitialized = false;
     let rfGridMeta = null;
@@ -3378,6 +3387,19 @@ let currentFlashMode = "clean";
       renderRfHeatmap(cachedRfRecords);
     }
 
+    function setRfDisplayMode(mode) {
+      if (mode !== "peak" && mode !== "avg") return;
+      currentRfMode = mode;
+      try { localStorage.setItem("solar_rf_mode", mode); } catch (_) {}
+      const group = document.getElementById("rf-mode-toggle");
+      if (group) {
+        group.querySelectorAll("button").forEach(b => {
+          b.classList.toggle("active", b.getAttribute("data-rf-mode") === mode);
+        });
+      }
+      renderRfHeatmap(cachedRfRecords);
+    }
+
     function updateRfLegend(minVal, maxVal) {
       const legendEl = document.getElementById("rf-legend");
       if (!legendEl) return;
@@ -3386,10 +3408,11 @@ let currentFlashMode = "clean";
         const t = i / 8;
         gradStops.push(\`\${interpolatePalette(t, currentRfPalette)} \${t * 100}%\`);
       }
+      const modeSuffix = currentRfMode === "avg" ? " (Avg)" : " (Peak)";
       legendEl.innerHTML = \`
         <span style="font-size:0.7rem; color:var(--text-muted);">\${minVal} pkts</span>
         <div style="width: 100px; height: 8px; border-radius: 4px; background: linear-gradient(to right, \${gradStops.join(", ")}); border: 1px solid var(--border);"></div>
-        <span style="font-size:0.7rem; color:var(--text-muted);">\${maxVal} pkts</span>
+        <span style="font-size:0.7rem; color:var(--text-muted);">\${maxVal} pkts\${modeSuffix}</span>
       \`;
     }
 
@@ -3400,6 +3423,27 @@ let currentFlashMode = "clean";
       const canvas = document.getElementById("rfHeatmapCanvas");
       const container = document.getElementById("rf-heatmap-container");
       if (!canvas || !container) return;
+
+      // Update section subtitle with latest RF scan timestamp
+      const subtitleEl = document.getElementById("rf-subtitle");
+      if (subtitleEl) {
+        const latestRf = [...cachedRfRecords].reverse().find(r =>
+          (r.wifi_channels_json && r.wifi_channels_json !== "null" && r.wifi_channels_json !== "[]") ||
+          (r.wifi_max_packets && r.wifi_max_packets > 0) ||
+          (r.ble_unique_devices && r.ble_unique_devices > 0)
+        );
+        const scanTime = latestRf ? new Date(latestRf.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
+        const latestStr = scanTime ? \` • Latest scan: <b>\${scanTime}</b>\` : "";
+        subtitleEl.innerHTML = \`Today's 2.4 GHz channels (1–13, BLE) and 7-day diurnal trend comparison\${latestStr}\`;
+      }
+
+      // Sync active state of Peak/Avg mode toggle buttons
+      const modeToggle = document.getElementById("rf-mode-toggle");
+      if (modeToggle) {
+        modeToggle.querySelectorAll("button").forEach(b => {
+          b.classList.toggle("active", b.getAttribute("data-rf-mode") === currentRfMode);
+        });
+      }
 
       const numRows = 28;
       const numCols = 48; // 48 half-hour slots: 00:00 to 23:30
@@ -3428,13 +3472,13 @@ let currentFlashMode = "clean";
       // 13: Today BLE
       rowMeta.push({ group: 0, label: "BLE", title: "Bluetooth LE Density (Today)", type: "ble_today" });
 
-      // 14..20: 7 Days Most Active Wi-Fi Channel
+      // 14..20: 7 Days Wi-Fi Activity
       for (let i = 0; i < 7; i++) {
         const dl = dayLabels[i];
         rowMeta.push({
           group: 1,
           label: dl.label,
-          title: \`Peak Wi-Fi Activity — \${dl.label} (\${dl.fullDate})\`,
+          title: \`Wi-Fi Activity — \${dl.label} (\${dl.fullDate})\`,
           dayIndex: i,
           dateMs: dl.dateMs,
           type: "wifi_7d"
@@ -3465,10 +3509,12 @@ let currentFlashMode = "clean";
       // Build cell data matrix: cellData[col][row]
       const cellData = [];
       const slotDuration = 30 * 60 * 1000;
+      const nowMs = Date.now();
 
       let globalMaxPkts = 0;
       let globalMaxBle = 0;
       const chTotals = new Array(14).fill(0);
+      const chCounts = new Array(14).fill(0);
 
       for (let c = 0; c < numCols; c++) {
         cellData[c] = [];
@@ -3476,79 +3522,121 @@ let currentFlashMode = "clean";
 
         for (let r = 0; r < numRows; r++) {
           const meta = rowMeta[r];
-          let maxVal = 0;
+          const slotStart = (meta.group === 0 ? todayMidnight : meta.dateMs) + slotOffset;
+          const slotEnd = slotStart + slotDuration;
+          const isFuture = slotStart > nowMs;
+
+          const slotRecs = isFuture ? [] : cachedRfRecords.filter(rec => {
+            const t = new Date(rec.timestamp).getTime();
+            return t >= slotStart && t < slotEnd;
+          });
+
+          let val = 0;
+          let rawVal = 0;
           let extraInfo = "";
 
           if (meta.group === 0) {
-            // Today
-            const slotStart = todayMidnight + slotOffset;
-            const slotEnd = slotStart + slotDuration;
-            const slotRecs = cachedRfRecords.filter(rec => {
-              const t = new Date(rec.timestamp).getTime();
-              return t >= slotStart && t < slotEnd;
-            });
-
+            // Today Wi-Fi Channel
             if (meta.type === "wifi_ch") {
               const ch = meta.ch;
+              const readings = [];
               slotRecs.forEach(rec => {
                 let pkts = 0;
                 if (rec.wifi_channels_json) {
                   try {
                     const arr = typeof rec.wifi_channels_json === "string" ? JSON.parse(rec.wifi_channels_json) : rec.wifi_channels_json;
-                    pkts = arr[ch] || 0;
+                    if (Array.isArray(arr)) {
+                      pkts = (arr.length === 13 ? arr[ch - 1] : arr[ch]) || 0;
+                    }
                   } catch (e) {}
                 } else if (rec.wifi_busiest_channel === ch) {
                   pkts = rec.wifi_max_packets || 0;
                 }
-                if (pkts > maxVal) maxVal = pkts;
+                readings.push(pkts);
               });
-              chTotals[ch] += maxVal;
-              if (maxVal > globalMaxPkts) globalMaxPkts = maxVal;
+
+              if (readings.length > 0) {
+                if (currentRfMode === "avg") {
+                  const sum = readings.reduce((a, b) => a + b, 0);
+                  rawVal = sum / readings.length;
+                  val = Math.round(rawVal);
+                } else {
+                  val = Math.max(...readings);
+                  rawVal = val;
+                }
+                chTotals[ch] += rawVal;
+                chCounts[ch]++;
+                if (rawVal > globalMaxPkts) globalMaxPkts = Math.round(rawVal);
+              }
             } else {
-              // BLE today
-              slotRecs.forEach(rec => {
-                const ble = rec.ble_unique_devices || 0;
-                if (ble > maxVal) maxVal = ble;
-              });
-              if (maxVal > globalMaxBle) globalMaxBle = maxVal;
+              // Today BLE
+              const readings = slotRecs.map(rec => rec.ble_unique_devices || 0);
+              if (readings.length > 0) {
+                if (currentRfMode === "avg") {
+                  const sum = readings.reduce((a, b) => a + b, 0);
+                  rawVal = sum / readings.length;
+                  val = Math.round(rawVal);
+                } else {
+                  val = Math.max(...readings);
+                  rawVal = val;
+                }
+                if (rawVal > globalMaxBle) globalMaxBle = Math.round(rawVal);
+              }
             }
           } else if (meta.group === 1) {
-            // Wi-Fi Peak 7 Days (row 14..20)
-            const slotStart = meta.dateMs + slotOffset;
-            const slotEnd = slotStart + slotDuration;
-            const slotRecs = cachedRfRecords.filter(rec => {
-              const t = new Date(rec.timestamp).getTime();
-              return t >= slotStart && t < slotEnd;
-            });
-
-            let peakCh = 0;
-            slotRecs.forEach(rec => {
-              const p = rec.wifi_max_packets || 0;
-              if (p > maxVal) {
-                maxVal = p;
-                peakCh = rec.wifi_busiest_channel || 0;
+            // Wi-Fi 7 Days (row 14..20)
+            if (slotRecs.length > 0) {
+              if (currentRfMode === "avg") {
+                const sum = slotRecs.reduce((a, r) => a + (r.wifi_max_packets || 0), 0);
+                rawVal = sum / slotRecs.length;
+                val = Math.round(rawVal);
+                const chFreq = {};
+                slotRecs.forEach(r => {
+                  if (r.wifi_busiest_channel) {
+                    chFreq[r.wifi_busiest_channel] = (chFreq[r.wifi_busiest_channel] || 0) + 1;
+                  }
+                });
+                let domCh = 0, maxF = 0;
+                for (const [chKey, f] of Object.entries(chFreq)) {
+                  if (f > maxF) { maxF = f; domCh = Number(chKey); }
+                }
+                if (domCh > 0) extraInfo = \`CH \${domCh}\`;
+              } else {
+                let peakRec = null;
+                slotRecs.forEach(r => {
+                  if (!peakRec || (r.wifi_max_packets || 0) > (peakRec.wifi_max_packets || 0)) {
+                    peakRec = r;
+                  }
+                });
+                val = peakRec ? (peakRec.wifi_max_packets || 0) : 0;
+                rawVal = val;
+                if (peakRec && peakRec.wifi_busiest_channel > 0) {
+                  extraInfo = \`CH \${peakRec.wifi_busiest_channel}\`;
+                }
               }
-            });
-            if (peakCh > 0) extraInfo = \`CH \${peakCh}\`;
-            if (maxVal > globalMaxPkts) globalMaxPkts = maxVal;
+              if (rawVal > globalMaxPkts) globalMaxPkts = Math.round(rawVal);
+            }
           } else if (meta.group === 2) {
             // BLE 7 Days (row 21..27)
-            const slotStart = meta.dateMs + slotOffset;
-            const slotEnd = slotStart + slotDuration;
-            const slotRecs = cachedRfRecords.filter(rec => {
-              const t = new Date(rec.timestamp).getTime();
-              return t >= slotStart && t < slotEnd;
-            });
-
-            slotRecs.forEach(rec => {
-              const ble = rec.ble_unique_devices || 0;
-              if (ble > maxVal) maxVal = ble;
-            });
-            if (maxVal > globalMaxBle) globalMaxBle = maxVal;
+            if (slotRecs.length > 0) {
+              const readings = slotRecs.map(r => r.ble_unique_devices || 0);
+              if (currentRfMode === "avg") {
+                const sum = readings.reduce((a, b) => a + b, 0);
+                rawVal = sum / readings.length;
+                val = Math.round(rawVal);
+              } else {
+                val = Math.max(...readings);
+                rawVal = val;
+              }
+              if (rawVal > globalMaxBle) globalMaxBle = Math.round(rawVal);
+            }
           }
 
           cellData[c][r] = {
-            val: maxVal,
+            val: val,
+            rawVal: rawVal,
+            sampleCount: slotRecs.length,
+            isFuture: isFuture,
             timeLabel: colLabels[c],
             meta: meta,
             extraInfo: extraInfo
@@ -3558,16 +3646,18 @@ let currentFlashMode = "clean";
 
       // Summary KPIs
       let busiestCh = 1;
-      let maxChSum = -1;
+      let maxChVal = -1;
       let cleanestCh = 1;
-      let minChSum = Infinity;
+      let minChVal = Infinity;
       for (let ch = 1; ch <= 13; ch++) {
-        if (chTotals[ch] > maxChSum) {
-          maxChSum = chTotals[ch];
+        const avg = chCounts[ch] > 0 ? (chTotals[ch] / chCounts[ch]) : 0;
+        const compareVal = currentRfMode === "avg" ? avg : chTotals[ch];
+        if (compareVal > maxChVal) {
+          maxChVal = compareVal;
           busiestCh = ch;
         }
-        if (chTotals[ch] < minChSum) {
-          minChSum = chTotals[ch];
+        if (chCounts[ch] > 0 && compareVal < minChVal) {
+          minChVal = compareVal;
           cleanestCh = ch;
         }
       }
@@ -3575,11 +3665,27 @@ let currentFlashMode = "clean";
       const elBusiest = document.getElementById("rf-busiest-ch");
       if (elBusiest) elBusiest.textContent = "CH " + busiestCh;
       const elMaxPkts = document.getElementById("rf-max-pkts");
-      if (elMaxPkts) elMaxPkts.textContent = (globalMaxPkts || 0) + " pkts";
+      if (elMaxPkts) elMaxPkts.textContent = (globalMaxPkts || 0) + (currentRfMode === "avg" ? " pkts (avg)" : " pkts");
       const elBle = document.getElementById("rf-ble-count");
-      if (elBle) elBle.textContent = (globalMaxBle || 0) + " devs";
+      if (elBle) elBle.textContent = (globalMaxBle || 0) + (currentRfMode === "avg" ? " devs (avg)" : " devs");
       const elCleanest = document.getElementById("rf-cleanest-ch");
       if (elCleanest) elCleanest.textContent = "CH " + cleanestCh;
+
+      const elBusiestLabel = document.getElementById("rf-busiest-ch-label");
+      if (elBusiestLabel) elBusiestLabel.textContent = currentRfMode === "avg" ? "Busiest Channel (Avg)" : "Busiest Channel";
+      const elMaxPktsLabel = document.getElementById("rf-max-pkts-label");
+      if (elMaxPktsLabel) elMaxPktsLabel.textContent = currentRfMode === "avg" ? "Avg Wi-Fi Activity" : "Peak Wi-Fi Activity";
+      const elBleLabel = document.getElementById("rf-ble-count-label");
+      if (elBleLabel) elBleLabel.textContent = currentRfMode === "avg" ? "Avg BLE Devices" : "Max BLE Devices";
+      const elCleanestLabel = document.getElementById("rf-cleanest-ch-label");
+      if (elCleanestLabel) elCleanestLabel.textContent = currentRfMode === "avg" ? "Cleanest Channel (Avg)" : "Cleanest Channel";
+
+      const legTitle = document.getElementById("rf-legend-title");
+      if (legTitle) {
+        legTitle.textContent = currentRfMode === "avg"
+          ? "Wi-Fi & BLE Environmental Radio Activity (30-min Slot Average)"
+          : "Wi-Fi & BLE Environmental Radio Activity (30-min Slot Peak)";
+      }
 
       updateRfLegend(0, globalMaxPkts > 0 ? globalMaxPkts : 100);
 
@@ -3652,7 +3758,7 @@ let currentFlashMode = "clean";
       ctx.fillText("2.4 GHz SPECTRUM (TODAY)", margin.left, margin.top - 5);
 
       ctx.fillStyle = "#f59e0b";
-      ctx.fillText("WI-FI PEAK ACTIVITY (LAST 7 DAYS)", margin.left, rowYPositions[14] - 6);
+      ctx.fillText(currentRfMode === "avg" ? "WI-FI AVG ACTIVITY (LAST 7 DAYS)" : "WI-FI PEAK ACTIVITY (LAST 7 DAYS)", margin.left, rowYPositions[14] - 6);
 
       ctx.fillStyle = "#38bdf8";
       ctx.fillText("BLE DEVICE DENSITY (LAST 7 DAYS)", margin.left, rowYPositions[21] - 6);
@@ -3664,8 +3770,11 @@ let currentFlashMode = "clean";
           const item = cellData[c][r];
           const y = rowYPositions[r];
 
-          if (item.val === 0) {
-            ctx.fillStyle = "#161b22";
+          if (item.isFuture) {
+            ctx.fillStyle = "#10141a"; // Future slot: subtly dimmed
+            ctx.fillRect(x, y, cellW, cellH);
+          } else if (item.val === 0) {
+            ctx.fillStyle = "#161b22"; // Active slot with 0 packets/devices
             ctx.fillRect(x, y, cellW, cellH);
           } else {
             const isBle = (item.meta.type === "ble_today" || item.meta.type === "ble_7d");
@@ -3675,6 +3784,47 @@ let currentFlashMode = "clean";
             ctx.fillRect(x, y, cellW, cellH);
           }
         }
+      }
+
+      // Draw NOW vertical indicator line
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+      const currentFrac = currentMinutes / 30; // 0..48 fractional column
+      if (currentFrac >= 0 && currentFrac <= numCols) {
+        const nowX = margin.left + currentFrac * (cellW + gapX);
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(239, 68, 68, 0.85)";
+        ctx.setLineDash([3, 2]);
+        ctx.lineWidth = 1.5;
+
+        // Today 2.4 GHz & BLE group (rows 0..13)
+        ctx.beginPath();
+        ctx.moveTo(nowX, margin.top);
+        ctx.lineTo(nowX, rowYPositions[13] + cellH);
+        ctx.stroke();
+
+        // Today row in Wi-Fi 7D (row 20)
+        ctx.beginPath();
+        ctx.moveTo(nowX, rowYPositions[20]);
+        ctx.lineTo(nowX, rowYPositions[20] + cellH);
+        ctx.stroke();
+
+        // Today row in BLE 7D (row 27)
+        ctx.beginPath();
+        ctx.moveTo(nowX, rowYPositions[27]);
+        ctx.lineTo(nowX, rowYPositions[27] + cellH);
+        ctx.stroke();
+
+        // Draw "NOW" badge at the top
+        ctx.fillStyle = "rgba(239, 68, 68, 0.9)";
+        ctx.fillRect(nowX - 14, margin.top - 14, 28, 11);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 8px monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("NOW", nowX, margin.top - 8);
+        ctx.restore();
       }
 
       // Draw Row Labels
@@ -3742,16 +3892,35 @@ let currentFlashMode = "clean";
             const item = cellData[col][row];
             if (tooltip) {
               const isBle = (item.meta.type === "ble_today" || item.meta.type === "ble_7d");
-              const unit = isBle ? "unique devices" : "pkts/s";
+              const unit = isBle ? "unique devices" : "pkts";
               const extra = item.extraInfo ? \` (\${item.extraInfo})\` : "";
-              tooltip.innerHTML = \`
-                <div style="font-weight:600; color:\${isBle ? '#38bdf8' : '#fbbf24'};">\${item.meta.title}</div>
-                <div>Time: \${item.timeLabel}</div>
-                <div>Activity: <b>\${item.val}</b> \${unit}\${extra}</div>
-              \`;
+              const modeLabel = currentRfMode === "avg" ? "Average" : "Peak";
+              const displayVal = currentRfMode === "avg" && item.rawVal !== undefined
+                ? Number(item.rawVal.toFixed(1))
+                : item.val;
+
+              if (item.isFuture) {
+                tooltip.innerHTML = \`
+                  <div style="font-weight:600; color:\${isBle ? '#38bdf8' : '#fbbf24'};\b">\${item.meta.title}</div>
+                  <div>Time: \${item.timeLabel}</div>
+                  <div style="color:var(--text-muted); font-style:italic;">⏳ Future / Pending time slot</div>
+                \`;
+              } else if (!item.sampleCount) {
+                tooltip.innerHTML = \`
+                  <div style="font-weight:600; color:\${isBle ? '#38bdf8' : '#fbbf24'};\b">\${item.meta.title}</div>
+                  <div>Time: \${item.timeLabel}</div>
+                  <div style="color:var(--text-muted);">No samples recorded (0 pkts)</div>
+                \`;
+              } else {
+                tooltip.innerHTML = \`
+                  <div style="font-weight:600; color:\${isBle ? '#38bdf8' : '#fbbf24'};\b">\${item.meta.title}</div>
+                  <div>Time: \${item.timeLabel} (\${item.sampleCount} \${item.sampleCount === 1 ? 'sample' : 'samples'})</div>
+                  <div>\${modeLabel}: <b>\${displayVal}</b> \${unit}\${extra}</div>
+                \`;
+              }
               tooltip.style.display = "block";
-              const ttLeft = Math.min(container.clientWidth - 180, mouseX + 12);
-              const ttTop = Math.max(10, mouseY - 45);
+              const ttLeft = Math.min(container.clientWidth - 190, mouseX + 12);
+              const ttTop = Math.max(10, mouseY - 55);
               tooltip.style.left = ttLeft + "px";
               tooltip.style.top = ttTop + "px";
             }

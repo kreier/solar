@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.10] - 2026-11-22
+
+### Added & Enhanced
+- **RF & BLE Environmental Activity Monitor (`Web v1.1.10`)**:
+  - **Peak vs. Average Dual-Mode Visualization**: Added an interactive switch (`Peak` | `Average`) in the section header, allowing operators to toggle between peak activity (highest single scan) and average activity (mean across 30-minute blocks) for each cell across Wi-Fi channels (1–13) and BLE density.
+  - **Dynamic KPI & Legend Mode Sync**: Automatically updates KPI cards (Busiest Channel, Wi-Fi Activity, BLE Devices, Cleanest Channel) and the gradient legend to reflect peak or average metrics, with preferences saved in `localStorage`.
+  - **Future Slot Distinction & "NOW" Timeline Indicator**: Rendered future/upcoming 30-minute time slots distinctly from zero-activity slots, added a vertical dashed "NOW" marker line on the canvas with a badge, and updated tooltips to show `⏳ Future / Pending time slot` for slots past the current hour.
+  - **Channel 13 Off-by-One Array Fix**: Corrected channel indexing where 13-element Wi-Fi channel arrays resulted in channel 13 being empty and channels 1–12 being shifted.
+  - **Latest RF Scan Time in Header**: Displayed the exact timestamp of the most recent RF telemetry packet directly in the subtitle, providing instant feedback that measurements are actively being captured.
+
 ## [1.1.9-canary] - 2026-11-21
 
 ### Added & Enhanced
