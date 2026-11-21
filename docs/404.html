@@ -453,7 +453,7 @@
       <div class="title-area">
         <h1>
           <span>☀️</span> Solar Telemetry Fleet
-          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.7</span>
+          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.8</span>
         </h1>
         <div class="subtitle" id="station-subtitle">Connecting to Cloudflare D1 Edge Ingestion...</div>
       </div>
@@ -717,9 +717,9 @@
       <p>ESP32 Solar Telemetry Fleet &bull; Minimal SPIFFS &bull; Dual OTA &bull; Cloudflare Edge &amp; D1 Database</p>
       <p>
         <a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull;
-        <span>Website v1.1.7</span> &bull;
+        <span>Website v1.1.8</span> &bull;
         <span>Firmware v<span id="fw-version">1.1.5</span> (Stable)</span> &bull;
-        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.7 Canary</span> &bull;
+        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.8 Canary</span> &bull;
         <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a>
       </p>
     </footer>
@@ -731,7 +731,7 @@
       <div class="modal-header">
         <div class="modal-title">
           <span>⚡ Web Firmware Installer</span>
-          <span class="badge badge-amber" id="modal-ver-badge">v1.1.5 Stable</span>
+          <span class="badge badge-amber" id="modal-ver-badge">v1.1.8 Canary</span>
         </div>
         <button class="modal-close-btn" onclick="closeFlashModal()" title="Close dialog">✕</button>
       </div>
@@ -764,7 +764,8 @@
             <div>
               <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;color:var(--text-muted);">Firmware Release Channel:</label>
               <select id="flasherVerSelect" style="width:100%;" onchange="updateFlasherManifest()">
-                <option value="1.1.7-canary" selected>v1.1.7 Canary (INA3221 CH2, Solar Power Telemetry, LiPo Autonomy Analytics)</option>
+                <option value="1.1.8-canary" selected>v1.1.8 Canary (Robust Multi-Manifest, Non-Destructive Update, Coredump Partition)</option>
+                <option value="1.1.7-canary">v1.1.7 Canary (INA3221 CH2, Solar Power Telemetry, LiPo Autonomy Analytics)</option>
                 <option value="1.1.6-canary">v1.1.6 Canary (S3 USB Update Bootloader, Soft-AP Verbose, Phy My Hung)</option>
                 <option value="1.1.5">v1.1.5 Stable (Production: Reset OTA, Auto-scale, INA3221 3-CH)</option>
                 <option value="1.1.4">v1.1.4 Stable</option>
@@ -1373,12 +1374,8 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const isUpdate = (currentFlashMode === "update");
 
       const btn = document.getElementById("espWebInstallBtn");
-      let manifestFile = "manifest.json";
-      if (ver.includes("canary")) {
-        manifestFile = isUpdate ? \`manifest-canary-update.json?version=\${ver}\` : \`manifest-canary.json?version=\${ver}\`;
-      } else {
-        manifestFile = isUpdate ? \`manifest-update.json?version=\${ver}\` : \`manifest.json?version=\${ver}\`;
-      }
+      const manifestFile = isUpdate ? `manifest-v${ver}-update.json` : `manifest-v${ver}.json`;
+      btn.manifest = manifestFile;
       btn.setAttribute("manifest", manifestFile);
 
       const channelLabel = ver.includes("canary") ? "Canary" : "Stable";

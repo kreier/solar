@@ -1,0 +1,44 @@
+{
+  "name": "Solar Telemetry Fleet (v1.1.5)",
+  "version": "1.1.5",
+  "funding_url": "https://github.com/kreier/solar",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "firmware/firmware-esp32-merged-v1.1.5.bin",
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        {
+          "path": "firmware/firmware-esp32s3-merged-v1.1.5.bin",
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "chipFamily": "ESP32-C6",
+      "parts": [
+        {
+          "path": "firmware/firmware-esp32c5-merged-v1.1.5.bin",
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "chipFamily": "ESP32-C5",
+      "parts": [
+        {
+          "path": "firmware/firmware-esp32c5-merged-v1.1.5.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

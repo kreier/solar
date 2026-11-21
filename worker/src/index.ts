@@ -59,10 +59,12 @@ export default {
 
       // ESP Web Tools Manifests for Web Serial Flashing
       if (path === "/manifest.json" || path.startsWith("/manifest-")) {
+        const pathMatch = path.match(/\/manifest-v([0-9a-zA-Z\.\-]+?)(-update)?\.json/);
+        const extractedVer = pathMatch ? pathMatch[1] : null;
         const queryVer = url.searchParams.get("version");
-        const isCanary = queryVer ? queryVer.includes("canary") : (path.includes("canary") || url.searchParams.get("version") === "1.1.7-canary");
         const isUpdate = path.includes("update") || url.searchParams.get("mode") === "update";
-        const versionStr = queryVer || (isCanary ? (env.CANARY_VERSION || "1.1.7-canary") : (env.STABLE_VERSION || "1.1.5"));
+        const isCanary = (queryVer || extractedVer || path).includes("canary");
+        const versionStr = queryVer || extractedVer || (isCanary ? (env.CANARY_VERSION || "1.1.8-canary") : (env.STABLE_VERSION || "1.1.5"));
 
         const builds = isUpdate
           ? [

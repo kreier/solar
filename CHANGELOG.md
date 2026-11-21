@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.8-canary] - 2026-11-21
+
+### Fixed & Enhanced
+- **Multi-Manifest Web Firmware Installer (`Web v1.1.8`)**:
+  - Implemented standalone versioned manifests (`manifest-v<version>.json` and `manifest-v<version>-update.json`) across all supported releases (1.0.2, 1.1.4, 1.1.5, 1.1.6-canary, 1.1.7-canary, 1.1.8-canary).
+  - Resolved GitHub Pages static hosting limitations where dynamic query parameters (`?version=...`) were ignored by static CDNs, ensuring that selecting any version on either Cloudflare Worker or GitHub Pages loads the exact corresponding manifest and binaries.
+  - Dynamically binds `<esp-web-install-button>` properties on click to guarantee instant reactivity when toggling between Clean Install and Update mode or changing versions.
+- **ESP32 Core Dump Partition Integration**:
+  - Added dedicated 64KB `coredump` partition (`0x10000` at `0x3F0000`) to `partitions/min_spiffs.csv` alongside a 128KB SPIFFS partition (`0x20000` at `0x3D0000`) and dual 1.9MB application slots (`app0`/`app1`).
+  - Completely eliminates ESP-IDF bootloader panic warning `E (472) esp_core_dump_flash: No core dump partition found!`.
+- **Non-Destructive Update Integrity Verification**:
+  - Configured update manifests to explicitly flash the primary bootloader (`0x1000` for ESP32, `0x0000` for ESP32-S3/C5), partition table (`0x8000`), and `boot_app0` (`0xE000`) alongside the application image (`0x10000`).
+  - Completely protects NVS (`0x9000`–`0xDFFF`), eliminating `flash read err, 1000` and `invalid header 0xffffffff` bootloop errors without erasing device credentials or calibration.
+
 ## [1.1.7-canary] - 2026-11-21
 
 ### Added & Enhanced

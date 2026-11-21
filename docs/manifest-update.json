@@ -1,5 +1,5 @@
 {
-  "name": "Solar Telemetry Fleet",
+  "name": "Solar Telemetry Fleet (v1.1.5 Update)",
   "version": "1.1.5",
   "funding_url": "https://github.com/kreier/solar",
   "new_install_prompt_erase": true,
@@ -7,37 +7,85 @@
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "firmware/bootloader-esp32.bin", "offset": 4096 },
-        { "path": "firmware/partitions-esp32.bin", "offset": 32768 },
-        { "path": "firmware/boot_app0.bin", "offset": 57344 },
-        { "path": "firmware/firmware-esp32-v1.1.5.bin", "offset": 65536 }
+        {
+          "path": "firmware/bootloader-esp32.bin",
+          "offset": 4096
+        },
+        {
+          "path": "firmware/partitions-esp32.bin",
+          "offset": 32768
+        },
+        {
+          "path": "firmware/boot_app0.bin",
+          "offset": 57344
+        },
+        {
+          "path": "firmware/firmware-esp32-v1.1.5.bin",
+          "offset": 65536
+        }
       ]
     },
     {
       "chipFamily": "ESP32-S3",
       "parts": [
-        { "path": "firmware/bootloader-esp32s3.bin", "offset": 0 },
-        { "path": "firmware/partitions-esp32s3.bin", "offset": 32768 },
-        { "path": "firmware/boot_app0.bin", "offset": 57344 },
-        { "path": "firmware/firmware-esp32s3-v1.1.5.bin", "offset": 65536 }
+        {
+          "path": "firmware/bootloader-esp32s3.bin",
+          "offset": 0
+        },
+        {
+          "path": "firmware/partitions-esp32s3.bin",
+          "offset": 32768
+        },
+        {
+          "path": "firmware/boot_app0.bin",
+          "offset": 57344
+        },
+        {
+          "path": "firmware/firmware-esp32s3-v1.1.5.bin",
+          "offset": 65536
+        }
       ]
     },
     {
       "chipFamily": "ESP32-C6",
       "parts": [
-        { "path": "firmware/bootloader-esp32c5.bin", "offset": 0 },
-        { "path": "firmware/partitions-esp32c5.bin", "offset": 32768 },
-        { "path": "firmware/boot_app0.bin", "offset": 57344 },
-        { "path": "firmware/firmware-esp32c5-v1.1.5.bin", "offset": 65536 }
+        {
+          "path": "firmware/bootloader-esp32c5.bin",
+          "offset": 0
+        },
+        {
+          "path": "firmware/partitions-esp32c5.bin",
+          "offset": 32768
+        },
+        {
+          "path": "firmware/boot_app0.bin",
+          "offset": 57344
+        },
+        {
+          "path": "firmware/firmware-esp32c5-v1.1.5.bin",
+          "offset": 65536
+        }
       ]
     },
     {
       "chipFamily": "ESP32-C5",
       "parts": [
-        { "path": "firmware/bootloader-esp32c5.bin", "offset": 0 },
-        { "path": "firmware/partitions-esp32c5.bin", "offset": 32768 },
-        { "path": "firmware/boot_app0.bin", "offset": 57344 },
-        { "path": "firmware/firmware-esp32c5-v1.1.5.bin", "offset": 65536 }
+        {
+          "path": "firmware/bootloader-esp32c5.bin",
+          "offset": 0
+        },
+        {
+          "path": "firmware/partitions-esp32c5.bin",
+          "offset": 32768
+        },
+        {
+          "path": "firmware/boot_app0.bin",
+          "offset": 57344
+        },
+        {
+          "path": "firmware/firmware-esp32c5-v1.1.5.bin",
+          "offset": 65536
+        }
       ]
     }
   ]
