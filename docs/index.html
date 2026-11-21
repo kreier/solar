@@ -1905,6 +1905,38 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
               const oP = otaPartitions.find(p => p.label === "otadata");
               if (oP) otaDataOffset = oP.offset;
             }
+
+            // Read otadata to see true active boot slot
+            try {
+              const otaBytes = await otaEsploader.readFlash(otaDataOffset, 32);
+              const seq0 = (otaBytes[0] | (otaBytes[1] << 8) | (otaBytes[2] << 16) | (otaBytes[3] << 24)) >>> 0;
+              const crc0 = (otaBytes[28] | (otaBytes[29] << 8) | (otaBytes[30] << 16) | (otaBytes[31] << 24)) >>> 0;
+              const valid0 = (crc0 === espCrc32(seq0));
+
+              let valid1 = false;
+              let seq1 = 0;
+              try {
+                const ota1Bytes = await otaEsploader.readFlash(otaDataOffset + 4096, 32);
+                seq1 = (ota1Bytes[0] | (ota1Bytes[1] << 8) | (ota1Bytes[2] << 16) | (ota1Bytes[3] << 24)) >>> 0;
+                const crc1 = (ota1Bytes[28] | (ota1Bytes[29] << 8) | (ota1Bytes[30] << 16) | (ota1Bytes[31] << 24)) >>> 0;
+                valid1 = (crc1 === espCrc32(seq1));
+              } catch (e1) {}
+
+              let detectedSlot = 0;
+              if (valid1 && (!valid0 || seq1 > seq0)) {
+                detectedSlot = 1;
+              } else if (valid0) {
+                detectedSlot = 0;
+              }
+              setActiveSlotBadge(detectedSlot);
+              if (otaMac) {
+                localStorage.setItem("solar_boot_slot_" + otaMac, detectedSlot.toString());
+                const maxSeq = Math.max(valid0 ? seq0 : 1, valid1 ? seq1 : 1);
+                localStorage.setItem("solar_ota_seq_" + otaMac, maxSeq.toString());
+              }
+            } catch (eOta) {
+              console.warn("Could not read otadata from flash:", eOta);
+            }
           } catch (e) {
             console.warn("Flash table read skipped:", e);
           }
@@ -1925,26 +1957,24 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         const savedVer0 = localStorage.getItem("solar_slot0_ver_" + otaMac);
         const savedVer1 = localStorage.getItem("solar_slot1_ver_" + otaMac);
 
-        if (savedVer0) document.getElementById("fwSlot0").textContent = savedVer0;
-        if (savedVer1) document.getElementById("fwSlot1").textContent = savedVer1;
+        if (savedVer0) {
+          document.getElementById("fwSlot0").textContent = savedVer0;
+        } else {
+          // If classic ESP32, factory Slot 0 is usually v1.0.2 Stable or fleet version
+          const fleetSt = (window.allStations || []).find(s => !s.station_id.toUpperCase().includes("S3"));
+          document.getElementById("fwSlot0").textContent = fleetSt && fleetSt.firmware_version ? ("v" + fleetSt.firmware_version) : "v1.0.2 Stable";
+        }
+
+        if (savedVer1) {
+          document.getElementById("fwSlot1").textContent = savedVer1;
+        } else {
+          // If S3 and unflashed in this browser, show latest canary fleet version or prompt
+          const s3St = (window.allStations || []).find(s => s.station_id.toUpperCase().includes("S3"));
+          document.getElementById("fwSlot1").textContent = isS3 && s3St && s3St.firmware_version ? ("v" + s3St.firmware_version) : "Detecting / Saved";
+        }
 
         if (savedSlot !== null) {
           setActiveSlotBadge(parseInt(savedSlot, 10));
-        } else {
-          setActiveSlotBadge(0);
-        }
-
-        // If station exists in allStations, populate active slot version
-        if (window.allStations && window.allStations.length > 0) {
-          const matchedSt = allStations.find(s => s.station_id.toLowerCase() === currentStationId.toLowerCase());
-          if (matchedSt && matchedSt.firmware_version) {
-            const curVer = "v" + matchedSt.firmware_version;
-            if (otaActiveSlot === 1) {
-              document.getElementById("fwSlot1").textContent = curVer;
-            } else {
-              document.getElementById("fwSlot0").textContent = curVer;
-            }
-          }
         }
 
         const tb = document.getElementById("otaPartTableBody");
@@ -1979,13 +2009,20 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       statusEl.textContent = `Setting otadata pointer to boot from Slot ${targetSlot}...`;
 
       try {
+        let currentSeq = parseInt(localStorage.getItem("solar_ota_seq_" + otaMac) || "1", 10);
+        let nextSeq = currentSeq + 1;
+        if (targetSlot === 0 && (nextSeq % 2 === 0)) nextSeq++;
+        if (targetSlot === 1 && (nextSeq % 2 !== 0)) nextSeq++;
+        if (otaMac) localStorage.setItem("solar_ota_seq_" + otaMac, nextSeq.toString());
+
         const fileArray = [];
         if (targetSlot === 0) {
-          fileArray.push({ data: buildOtaSector(1), address: otaDataOffset });
-          fileArray.push({ data: new Uint8Array(4096).fill(0xff), address: otaDataOffset + 4096 });
+          fileArray.push({ data: buildOtaSector(nextSeq), address: otaDataOffset });
+          if (nextSeq <= 1) {
+            fileArray.push({ data: new Uint8Array(4096).fill(0x00), address: otaDataOffset + 4096 });
+          }
         } else {
-          fileArray.push({ data: buildOtaSector(1), address: otaDataOffset });
-          fileArray.push({ data: buildOtaSector(2), address: otaDataOffset + 4096 });
+          fileArray.push({ data: buildOtaSector(nextSeq), address: otaDataOffset + 4096 });
         }
 
         await otaEsploader.writeFlash({
@@ -2061,13 +2098,20 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
         });
 
         progressLabel.textContent = `Updating otadata to boot from Slot ${targetSlot}...`;
+        let currentSeq = parseInt(localStorage.getItem("solar_ota_seq_" + otaMac) || "1", 10);
+        let nextSeq = currentSeq + 1;
+        if (targetSlot === 0 && (nextSeq % 2 === 0)) nextSeq++;
+        if (targetSlot === 1 && (nextSeq % 2 !== 0)) nextSeq++;
+        if (otaMac) localStorage.setItem("solar_ota_seq_" + otaMac, nextSeq.toString());
+
         const otaFiles = [];
         if (targetSlot === 0) {
-          otaFiles.push({ data: buildOtaSector(1), address: otaDataOffset });
-          otaFiles.push({ data: new Uint8Array(4096).fill(0xff), address: otaDataOffset + 4096 });
+          otaFiles.push({ data: buildOtaSector(nextSeq), address: otaDataOffset });
+          if (nextSeq <= 1) {
+            otaFiles.push({ data: new Uint8Array(4096).fill(0x00), address: otaDataOffset + 4096 });
+          }
         } else {
-          otaFiles.push({ data: buildOtaSector(1), address: otaDataOffset });
-          otaFiles.push({ data: buildOtaSector(2), address: otaDataOffset + 4096 });
+          otaFiles.push({ data: buildOtaSector(nextSeq), address: otaDataOffset + 4096 });
         }
 
         await otaEsploader.writeFlash({
