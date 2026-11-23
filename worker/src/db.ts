@@ -144,7 +144,7 @@ export class Database {
            cycle_dns_ms, cycle_tcp_ms, cycle_tls_ms, cycle_post_ms, cycle_server_ms,
            cycle_upload_ms, cycle_total_ms, cycle_http_code,
            wifi_max_packets, wifi_busiest_channel, ble_unique_devices, wifi_channels_json,
-           raw_payload
+           raw_payload, uptime_s
          ) VALUES (
            ?1, ?2, ?3, ?4, ?5, ?6,
            ?7, ?8, ?9, ?10, ?11, ?12,
@@ -152,7 +152,7 @@ export class Database {
            ?17, ?18, ?19, ?20, ?21,
            ?22, ?23, ?24,
            ?25, ?26, ?27, ?28,
-           ?29
+           ?29, ?30
          )`
       )
       .bind(
@@ -184,11 +184,12 @@ export class Database {
         payload.monitor?.wifi_busiest_channel ?? 0,
         payload.monitor?.ble_unique_devices ?? 0,
         payload.monitor?.wifi_channels ? JSON.stringify(payload.monitor.wifi_channels) : null,
-        JSON.stringify(payload)
+        JSON.stringify(payload),
+        payload.uptime_s ?? null
       )
       .run();
 
-    // 3. Update station last_seen, current readings, and canary status
+    // 3. Update station last_seen, current readings, canary status, and uptime
     await this.db
       .prepare(
         `UPDATE stations SET
@@ -199,8 +200,9 @@ export class Database {
            solar_mv = ?5,
            temp_c = ?6,
            ip_address = COALESCE(?7, ip_address),
-           is_canary = CASE WHEN ?8 IS NOT NULL THEN ?8 ELSE is_canary END
-         WHERE station_id = ?9`
+           is_canary = CASE WHEN ?8 IS NOT NULL THEN ?8 ELSE is_canary END,
+           uptime_s = CASE WHEN ?9 IS NOT NULL THEN ?9 ELSE uptime_s END
+         WHERE LOWER(station_id) = LOWER(?10)`
       )
       .bind(
         now,
@@ -211,6 +213,7 @@ export class Database {
         payload.temp_c,
         clientIp,
         payload.is_canary ?? null,
+        payload.uptime_s ?? null,
         payload.station_id
       )
       .run();
@@ -255,6 +258,7 @@ export class Database {
       location?: string;
       is_canary?: number;
       target_version?: string | null;
+      static_load_ohm?: number;
     }
   ): Promise<void> {
     await this.db
@@ -264,8 +268,9 @@ export class Database {
            enable_lipo = CASE WHEN ?3 IS NOT NULL THEN ?3 ELSE enable_lipo END,
            location = CASE WHEN ?4 IS NOT NULL THEN ?4 ELSE location END,
            is_canary = CASE WHEN ?5 IS NOT NULL THEN ?5 ELSE is_canary END,
-           target_version = CASE WHEN ?6 IS NOT NULL THEN ?6 ELSE target_version END
-         WHERE station_id = ?1`
+           target_version = CASE WHEN ?6 IS NOT NULL THEN ?6 ELSE target_version END,
+           static_load_ohm = CASE WHEN ?7 IS NOT NULL THEN ?7 ELSE static_load_ohm END
+         WHERE LOWER(station_id) = LOWER(?1)`
       )
       .bind(
         stationId,
@@ -273,7 +278,8 @@ export class Database {
         settings.enable_lipo !== undefined ? settings.enable_lipo : null,
         settings.location !== undefined ? settings.location : null,
         settings.is_canary !== undefined ? settings.is_canary : null,
-        settings.target_version !== undefined ? settings.target_version : null
+        settings.target_version !== undefined ? settings.target_version : null,
+        settings.static_load_ohm !== undefined ? settings.static_load_ohm : null
       )
       .run();
   }

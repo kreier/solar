@@ -1,6 +1,16 @@
 #pragma once
 
 #include <Arduino.h>
+#include <esp_rtc_time.h>
+#include "soc/rtc.h"
+
+static inline uint32_t getRtcUptimeSeconds() {
+    uint64_t us = esp_rtc_get_time_us();
+    if (us > 0) {
+        return (uint32_t)(us / 1000000ULL);
+    }
+    return (uint32_t)(esp_timer_get_time() / 1000000ULL);
+}
 
 struct CycleBenchmark {
     uint32_t boot_ms;         // Time spent in hardware/sensor init

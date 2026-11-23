@@ -465,7 +465,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="title-area">
         <h1>
           <span>☀️</span> Solar Telemetry Fleet
-          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.11</span>
+          <span class="badge badge-blue" style="font-size:0.75rem;vertical-align:middle;margin-left:0.5rem;" title="Web Dashboard Application Version">Web v1.1.12</span>
         </h1>
         <div class="subtitle" id="station-subtitle">Connecting to Cloudflare D1 Edge Ingestion...</div>
       </div>
@@ -733,9 +733,9 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <p>ESP32 Solar Telemetry Fleet &bull; Minimal SPIFFS &bull; Dual OTA &bull; Cloudflare Edge &amp; D1 Database</p>
       <p>
         <a href="https://github.com/kreier/solar" target="_blank">kreier/solar on GitHub</a> &bull;
-        <span>Website v1.1.11</span> &bull;
-        <span>Firmware v<span id="fw-version">1.1.5</span> (Stable)</span> &bull;
-        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.11 Canary</span> &bull;
+        <span>Website v1.1.12</span> &bull;
+        <span>Firmware v<span id="fw-version">1.1.12</span> (Stable)</span> &bull;
+        <span class="badge badge-amber" style="padding:0.1rem 0.4rem;">v1.1.12 Canary</span> &bull;
         <a href="javascript:void(0)" onclick="openFlashModal()">Web Firmware Flasher</a>
       </p>
     </footer>
@@ -747,7 +747,7 @@ export function renderDashboardHtml(workerUrl?: string): string {
       <div class="modal-header">
         <div class="modal-title">
           <span>⚡ Web Firmware Installer</span>
-          <span class="badge badge-amber" id="modal-ver-badge">v1.1.11 Canary</span>
+          <span class="badge badge-amber" id="modal-ver-badge">v1.1.12 Canary</span>
         </div>
         <button class="modal-close-btn" onclick="closeFlashModal()" title="Close dialog">✕</button>
       </div>
@@ -859,7 +859,9 @@ export function renderDashboardHtml(workerUrl?: string): string {
               <div>
                 <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Firmware Version:</label>
                 <select id="otaFwSelect" style="width:100%;font-size:0.82rem;padding:0.4rem;background:#0d1117;color:#f0f6fc;border:1px solid #30363d;border-radius:6px;">
-                  <option value="1.1.11-canary" selected>v1.1.11 Canary (Latest: RF Congestion Bar Graph, Rolling 24h)</option>
+                  <option value="1.1.12-canary" selected>v1.1.12 Canary (Latest: Calibrated ADC, Ohmic Load, RTC Uptime)</option>
+                  <option value="1.1.12">v1.1.12 Stable</option>
+                  <option value="1.1.11-canary">v1.1.11 Canary (RF Congestion Bar Graph, Rolling 24h)</option>
                   <option value="1.1.9-canary">v1.1.9 Canary (CH 12-13 VN, 48Ω Load)</option>
                   <option value="1.1.8-canary">v1.1.8 Canary</option>
                   <option value="1.1.7-canary">v1.1.7 Canary</option>
@@ -926,7 +928,9 @@ export function renderDashboardHtml(workerUrl?: string): string {
             <div>
               <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.3rem;color:var(--text-muted);">Firmware Release Channel:</label>
               <select id="flasherVerSelect" style="width:100%;" onchange="updateFlasherManifest()">
-                <option value="1.1.11-canary" selected>v1.1.11 Canary (RF Congestion Bar Graph, Rolling 24h Spectrum)</option>
+                <option value="1.1.12-canary" selected>v1.1.12 Canary (Calibrated ADC, Ohmic Load, RTC Uptime)</option>
+                <option value="1.1.12">v1.1.12 Stable</option>
+                <option value="1.1.11-canary">v1.1.11 Canary (RF Congestion Bar Graph, Rolling 24h Spectrum)</option>
                 <option value="1.1.9-canary">v1.1.9 Canary (Channels 12-13 VN Wi-Fi, 48Ω Static Ohmic Power)</option>
                 <option value="1.1.8-canary">v1.1.8 Canary (Robust Multi-Manifest, Non-Destructive Update, Coredump Partition)</option>
                 <option value="1.1.7-canary">v1.1.7 Canary (INA3221 CH2, Solar Power Telemetry, LiPo Autonomy Analytics)</option>
@@ -1107,6 +1111,12 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
             </select>
           </div>
 
+          <div>
+            <label style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Solar Ohmic Load (Ω) (For stations without INA3221)</label>
+            <input type="number" step="0.1" min="1" max="1000" id="settings-static-load" placeholder="48.0" style="width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.8rem; color: var(--text);">
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Used to derive solar power (P = V² / R) when no INA3221 is installed. Preset to 48.0 Ω. Synchronized on OTA check.</div>
+          </div>
+
           <div style="display: flex; flex-direction: column; gap: 0.6rem;">
             <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
               <input type="checkbox" id="settings-enable-lipo" value="1" style="width: auto;">
@@ -1280,6 +1290,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
       const st = allStations.find(s => s.station_id === currentStationId) || currentStationRecord || {};
       document.getElementById("settings-location").value = st.location || "";
       document.getElementById("settings-power-mode").value = (st.power_mode !== undefined && st.power_mode !== null) ? String(st.power_mode) : "0";
+      document.getElementById("settings-static-load").value = (st.static_load_ohm !== undefined && st.static_load_ohm !== null) ? String(st.static_load_ohm) : "48.0";
       document.getElementById("settings-enable-lipo").checked = (st.enable_lipo === 1);
       document.getElementById("settings-is-canary").checked = (st.is_canary === 1);
       document.getElementById("settings-target-version").value = st.target_version || "";
@@ -1380,6 +1391,7 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
 
       const location = document.getElementById("settings-location").value.trim();
       const powerMode = parseInt(document.getElementById("settings-power-mode").value, 10);
+      const staticLoad = parseFloat(document.getElementById("settings-static-load").value) || 48.0;
       const enableLipo = document.getElementById("settings-enable-lipo").checked ? 1 : 0;
       const isCanary = document.getElementById("settings-is-canary").checked ? 1 : 0;
       const targetVersion = document.getElementById("settings-target-version").value.trim() || null;
@@ -1397,7 +1409,8 @@ esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 write_flash 0x0 firmwa
             power_mode: powerMode,
             enable_lipo: enableLipo,
             is_canary: isCanary,
-            target_version: targetVersion
+            target_version: targetVersion,
+            static_load_ohm: staticLoad
           })
         });
 
@@ -2256,15 +2269,26 @@ let currentFlashMode = "clean";
       }
     }
 
-    function formatUptime(startIso) {
-      if (!startIso) return "0 hours";
-      const startMs = new Date(startIso).getTime();
-      const diffMs = Math.max(0, Date.now() - startMs);
-      const days = Math.floor(diffMs / (86400 * 1000));
-      const hours = Math.floor((diffMs % (86400 * 1000)) / (3600 * 1000));
+    function formatUptime(uptimeSecondsOrIso) {
+      if (!uptimeSecondsOrIso && uptimeSecondsOrIso !== 0) return "0 hours";
+      let totalSeconds = 0;
+      if (typeof uptimeSecondsOrIso === "number") {
+        totalSeconds = Math.max(0, Math.floor(uptimeSecondsOrIso));
+      } else if (!isNaN(Number(uptimeSecondsOrIso)) && typeof uptimeSecondsOrIso === "string" && !uptimeSecondsOrIso.includes("-") && !uptimeSecondsOrIso.includes("T")) {
+        totalSeconds = Math.max(0, Math.floor(Number(uptimeSecondsOrIso)));
+      } else {
+        const startMs = new Date(uptimeSecondsOrIso).getTime();
+        totalSeconds = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+      }
+      const days = Math.floor(totalSeconds / 86400);
+      const hours = Math.floor((totalSeconds % 86400) / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
       const dayStr = days === 1 ? "1 day" : \`\${days} days\`;
       const hrStr = hours === 1 ? "1 hour" : \`\${hours} hours\`;
-      return days > 0 ? \`\${dayStr}, \${hrStr}\` : hrStr;
+      const minStr = minutes === 1 ? "1 min" : \`\${minutes} mins\`;
+      if (days > 0) return \`\${dayStr}, \${hrStr}\`;
+      if (hours > 0) return \`\${hrStr}, \${minStr}\`;
+      return \`\${minStr}\`;
     }
 
     function computeVoltageMax(maxV) {
@@ -2353,9 +2377,12 @@ let currentFlashMode = "clean";
           try { renderRfHeatmap(cachedHistory); } catch(e) { console.error("renderRfHeatmap error:", e); }
         }
 
-        const nodeFw = (data.station && data.station.firmware_version) ? ("Node FW v" + data.station.firmware_version) : "Node FW v1.1.5";
+        const nodeFw = (data.station && data.station.firmware_version) ? ("Node FW v" + data.station.firmware_version) : "Node FW v1.1.12";
         const canaryBadge = (data.station && data.station.is_canary) ? " <span class='badge badge-blue'>Canary</span>" : "";
-        const uptimeStr = formatUptime(data.station?.created_at || (cachedHistory.length > 0 ? cachedHistory[0].timestamp : null));
+        const uptimeVal = (data.station?.uptime_s !== undefined && data.station?.uptime_s !== null && data.station.uptime_s > 0)
+          ? data.station.uptime_s
+          : (data.station?.created_at || (cachedHistory.length > 0 ? cachedHistory[0].timestamp : null));
+        const uptimeStr = formatUptime(uptimeVal);
         document.getElementById("station-subtitle").innerHTML =
           "<div>Station: <b>" + stationId + "</b> • Location: <b>" + (data.station?.location || "Solar Site") + "</b>" +
           " • <span class='badge badge-amber'>" + nodeFw + "</span>" + canaryBadge + "</div>" +

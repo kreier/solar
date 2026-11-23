@@ -4,7 +4,7 @@ Edge-native telemetry fleet monitoring for ESP32 microcontrollers measuring sola
 
 [![Build Firmware CI](https://github.com/kreier/solar/actions/workflows/build-firmware.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/build-firmware.yml)
 [![Deploy GitHub Pages](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/kreier/solar/actions/workflows/deploy-pages.yml)
-[![Firmware](https://img.shields.io/badge/firmware-v1.1.5-blue.svg)](firmware/)
+[![Firmware](https://img.shields.io/badge/firmware-v1.1.12-blue.svg)](firmware/)
 [![Boards](https://img.shields.io/badge/boards-ESP32%20%7C%20ESP32--S3%20%7C%20ESP32--C5-orange.svg)](firmware/)
 [![ADRs](https://img.shields.io/badge/docs-ADRs%20(6)-success.svg)](docs/adr/)
 
@@ -84,9 +84,9 @@ Edge-native telemetry fleet monitoring for ESP32 microcontrollers measuring sola
 
 | Pin | Channel | Sensor / Circuit | Divider Ratio | Calibration Formula | Physical Unit |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Pin 32** | ADC1_CH4 | Local Temperature | 1:1 | `voltage[0] = int(voltage[0] * 0.83 + 155)` | `mV / 10 = °C` |
-| **Pin 34** | ADC1_CH6 | Solar Panel Voltage | 1kΩ : 1kΩ (2:1) | `voltage[2] = int(voltage[2] * 1.64 + 315)` *(0 if 315)* | `mV / 1000 = V` |
-| **Pin 35** | ADC1_CH7 | LiPo Battery Voltage | 10kΩ : 10kΩ (2:1) | `voltage[3] = int(voltage[3] * 1.65 + 307)` | `mV / 1000 = V` |
+| **Pin 32** | ADC1_CH4 | Local Temperature | 1:1 | `temp_mv = analogReadMilliVolts(pin) [100x]` | `temp_mv * 0.1 = °C` |
+| **Pin 34** | ADC1_CH6 | Solar Panel Voltage | 1kΩ : 1kΩ (2:1) | `solar_mv = pin_mv * 2.0` *(0 if raw=0 or pin_mv ≤ 145)* | `solar_mv / 1000 = V` |
+| **Pin 35** | ADC1_CH7 | LiPo Battery Voltage | 10kΩ : 10kΩ (2:1) | `lipo_mv = analogReadMilliVolts(pin) * 2.0` | `lipo_mv / 1000 = V` |
 
 ---
 

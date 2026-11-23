@@ -72,6 +72,14 @@ public:
                     configChanged = true;
                 }
             }
+            if (doc["static_load_ohm"].is<float>() || doc["load_ohm"].is<float>()) {
+                float serverLoad = doc["static_load_ohm"].is<float>() ? doc["static_load_ohm"].as<float>() : doc["load_ohm"].as<float>();
+                if (serverLoad > 0.0f && abs(serverLoad - config.static_load_ohm) > 0.01f) {
+                    Serial.printf("[OTA] Server updated static_load_ohm: %.1f -> %.1f\n", config.static_load_ohm, serverLoad);
+                    config.static_load_ohm = serverLoad;
+                    configChanged = true;
+                }
+            }
             if (configChanged) {
                 configMgr.saveConfig(config);
             }

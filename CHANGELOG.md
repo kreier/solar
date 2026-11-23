@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.12] - 2026-11-23
+
+### Fixed & Enhanced
+- **Solar Voltage Deadband Filter & 0.284V Offset Resolution**:
+  - Resolved artificial `0.284` V nighttime reading on station `PHUMY` caused by the ESP32 SAR ADC factory polynomial curve offset (~142 mV on `analogReadMilliVolts()`) when scaled by the 2:1 voltage divider (`solarFactor = 2.0`).
+  - Reinstated deadband threshold filter (`readings.raw_pin_solar == 0 || readings.pin_solar_mv <= 145`) in `adc_reader.h`, ensuring nighttime solar readings cleanly resolve to `0.00` V.
+- **Temperature Sensor Multisampling & Register Inversion Fix**:
+  - Restored 100x multisampling on temperature ADC channel (previously reduced to 50x in v1.1.0), significantly reducing noise and variance in temperature readings.
+  - Reinstated classic ESP32 SAR ADC register initialization (`WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, ...)` and `SET_PERI_REG_MASK(SENS_SAR_READ_CTRL2_REG, SENS_SAR2_DATA_INV)`) which prevents ADC inversion and data corruption following light/deep sleep cycles.
+  - Retained factory-calibrated `analogReadMilliVolts(pinTemp)` scaling (`temp_c = pin_temp_mv * 0.1f` for 10 mV/°C analog sensors).
+- **LiPo Battery Voltage Derivation & Database Cleanup**:
+  - Documented LiPo derivation: sampled on GPIO 35 across a 10kΩ : 10kΩ voltage divider (2:1 ratio) with 100x multisampled `analogReadMilliVolts()`, multiplied by `lipoFactor` (2.0) to get battery millivolts, divided by 1000 for Volts.
+  - Cleaned up historical D1 telemetry data for station `PHUMY` on November 21st between 11:32 and 13:41 (UTC 05:45 to 06:57), replacing 11 glitched `0.00` V LiPo readings with the surrounding midday average of `4209` mV (`4.209` V).
+- **Configurable Ohmic Load & Solar Power Derivation**:
+  - Added support for stations lacking an INA3221 current sensor (such as PHUMY with two 24Ω series resistors = 48Ω) to derive solar power via Ohm's Law ($P = V^2 / R$).
+  - Preset default to 48.0Ω in `app_config.h` and NVS key `load_r`.
+  - Added `static_load_ohm REAL DEFAULT 48.0` column in Cloudflare D1 `stations` table (`migrations/0005_static_load_and_uptime.sql`).
+  - Added "Solar Ohmic Load (Ω)" setting to web dashboard Settings modal (`frontend.ts`, `docs/index.html`, `docs/404.html`) and backend API.
+  - Stations automatically receive and persist updated ohmic load values during daily OTA checks.
+- **Hardware RTC Actual Station Uptime Tracking**:
+  - Implemented actual uptime tracking surviving deep sleep using `esp_rtc_get_time_us()` (which accesses the hardware 48-bit RTC slow counter across sleep cycles).
+  - Added `uptime_s` field to station telemetry uploads (`api_client.h`), D1 database tables (`stations` and `measurements`), and worker ingestion layer.
+  - Updated web dashboard header to display actual node uptime directly from transmitted station telemetry.
+- **Unified Release v1.1.12 & Canary v1.1.12-canary**:
+  - Bumped Cloudflare Worker environment `STABLE_VERSION = "1.1.12"` and `CANARY_VERSION = "1.1.12-canary"`.
+  - Built, verified, and merged release binaries for ESP32, ESP32-S3, ESP32-C5, and ESP32-C6 in `docs/firmware/`.
+  - Generated and published dual-mode installer manifests (`manifest-v1.1.12.json`, `manifest-v1.1.12-update.json`, `manifest-v1.1.12-canary.json`, `manifest-v1.1.12-canary-update.json`) and updated default manifests.
+
 ## [1.1.11-canary] - 2026-11-22
 
 ### Added & Enhanced

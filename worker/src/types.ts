@@ -90,6 +90,7 @@ export interface TelemetryPayload {
   };
   ina3221?: Ina3221Metrics;
   monitor?: MonitorMetrics;
+  uptime_s?: number;
   batch_samples?: BufferedBatchSample[];
   prev_cycle?: CycleMetrics;
   current_cycle?: CycleMetrics;
@@ -111,6 +112,8 @@ export interface StationRecord {
   temp_c: number | null;
   power_mode?: number | null;
   enable_lipo?: number | null;
+  static_load_ohm?: number | null;
+  uptime_s?: number | null;
 }
 
 export interface UpdateStationSettingsRequest {
@@ -120,6 +123,7 @@ export interface UpdateStationSettingsRequest {
   location?: string;
   is_canary?: number;
   target_version?: string | null;
+  static_load_ohm?: number;
 }
 
 export interface PruneMeasurementsRequest {
@@ -159,4 +163,5 @@ export interface MeasurementRecord {
   wifi_channels_json?: string | null;
   raw_payload: string | null;
   power_mw?: number | null;
+  uptime_s?: number | null;
 }

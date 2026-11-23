@@ -1,6 +1,10 @@
 #pragma once
 
 #include <Arduino.h>
+#include "soc/soc.h"
+#if CONFIG_IDF_TARGET_ESP32
+#include "soc/sens_reg.h"
+#endif
 
 struct AdcReadings {
     int raw_pin_temp;
@@ -22,16 +26,31 @@ struct AdcReadings {
 };
 
 class AdcReader {
+private:
+    uint32_t _reg_b;
+
 public:
-    AdcReader() {}
+    AdcReader() : _reg_b(0) {}
 
     void begin() {
         analogReadResolution(12);
+#if CONFIG_IDF_TARGET_ESP32
+        // Save ADC2 control register state on classic ESP32 to restore after sleep/Wi-Fi
+        _reg_b = READ_PERI_REG(SENS_SAR_READ_CTRL2_REG);
+#endif
     }
 
     AdcReadings readSensors(uint8_t pinTemp, uint8_t pinSolar, uint8_t pinLipo,
                             uint8_t tempSource = 0, bool enableSolar = true, bool enableLipo = true,
                             float tempFactor = 0.1f, float solarFactor = 2.0f, float lipoFactor = 2.0f) {
+#if CONFIG_IDF_TARGET_ESP32
+        // Restore ADC register state after sleep on classic ESP32 to prevent inverted/corrupted readings
+        if (_reg_b != 0) {
+            WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, _reg_b);
+            SET_PERI_REG_MASK(SENS_SAR_READ_CTRL2_REG, SENS_SAR2_DATA_INV);
+        }
+#endif
+
         AdcReadings readings;
         memset(&readings, 0, sizeof(readings));
 
@@ -48,16 +67,17 @@ public:
             readings.raw_pin_temp = 0;
             readings.pin_temp_mv = readings.temp_mv;
         } else {
-            // External Analog Temperature Sensor on pinTemp using factory-calibrated adc_cali_raw_to_voltage
+            // External Analog Temperature Sensor on pinTemp using factory-calibrated analogReadMilliVolts
+            // Multisample 100x to reduce noise (~1 ms total)
             long rawSum = 0;
             long mvSum = 0;
-            for (int i = 0; i < 50; i++) {
+            for (int i = 0; i < 100; i++) {
                 rawSum += analogRead(pinTemp);
                 mvSum  += analogReadMilliVolts(pinTemp);
-                delayMicroseconds(25);
+                delayMicroseconds(20);
             }
-            readings.raw_pin_temp = rawSum / 50;
-            readings.pin_temp_mv = mvSum / 50;
+            readings.raw_pin_temp = rawSum / 100;
+            readings.pin_temp_mv = mvSum / 100;
             readings.temp_mv = readings.pin_temp_mv;
             readings.temp_c = readings.pin_temp_mv * tempFactor;
         }
@@ -66,17 +86,24 @@ public:
         if (enableSolar) {
             long rawSum = 0;
             long mvSum = 0;
-            for (int i = 0; i < 50; i++) {
+            for (int i = 0; i < 100; i++) {
                 rawSum += analogRead(pinSolar);
                 mvSum  += analogReadMilliVolts(pinSolar);
-                delayMicroseconds(25);
+                delayMicroseconds(20);
             }
-            readings.raw_pin_solar = rawSum / 50;
-            readings.pin_solar_mv = mvSum / 50;
+            readings.raw_pin_solar = rawSum / 100;
+            readings.pin_solar_mv = mvSum / 100;
 
-            // Apply conversion factor (standard x2.0 for 1k:1k voltage divider)
-            readings.solar_mv = static_cast<int>(readings.pin_solar_mv * solarFactor);
-            readings.solar_v = readings.solar_mv / 1000.0f;
+            // ESP32 ADC deadband filter (< ~150 mV offset produces 0.284V at raw=0 with 2:1 divider)
+            if (readings.raw_pin_solar == 0 || readings.pin_solar_mv <= 145) {
+                readings.pin_solar_mv = 0;
+                readings.solar_mv = 0;
+                readings.solar_v = 0.0f;
+            } else {
+                // Apply conversion factor (standard x2.0 for 1k:1k voltage divider)
+                readings.solar_mv = static_cast<int>(readings.pin_solar_mv * solarFactor);
+                readings.solar_v = readings.solar_mv / 1000.0f;
+            }
         } else {
             readings.raw_pin_solar = 0;
             readings.pin_solar_mv = 0;
@@ -88,17 +115,23 @@ public:
         if (enableLipo) {
             long rawSum = 0;
             long mvSum = 0;
-            for (int i = 0; i < 50; i++) {
+            for (int i = 0; i < 100; i++) {
                 rawSum += analogRead(pinLipo);
                 mvSum  += analogReadMilliVolts(pinLipo);
-                delayMicroseconds(25);
+                delayMicroseconds(20);
             }
-            readings.raw_pin_lipo = rawSum / 50;
-            readings.pin_lipo_mv = mvSum / 50;
+            readings.raw_pin_lipo = rawSum / 100;
+            readings.pin_lipo_mv = mvSum / 100;
 
-            // Apply conversion factor (standard x2.0 for 10k:10k voltage divider)
-            readings.lipo_mv = static_cast<int>(readings.pin_lipo_mv * lipoFactor);
-            readings.lipo_v = readings.lipo_mv / 1000.0f;
+            if (readings.raw_pin_lipo == 0) {
+                readings.pin_lipo_mv = 0;
+                readings.lipo_mv = 0;
+                readings.lipo_v = 0.0f;
+            } else {
+                // Apply conversion factor (standard x2.0 for 10k:10k voltage divider)
+                readings.lipo_mv = static_cast<int>(readings.pin_lipo_mv * lipoFactor);
+                readings.lipo_v = readings.lipo_mv / 1000.0f;
+            }
         } else {
             readings.raw_pin_lipo = 0;
             readings.pin_lipo_mv = 0;

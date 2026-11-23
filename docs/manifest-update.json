@@ -1,6 +1,6 @@
 {
-  "name": "Solar Telemetry Fleet (v1.1.5 Update)",
-  "version": "1.1.5",
+  "name": "Solar Telemetry Fleet (v1.1.12 Update)",
+  "version": "1.1.12",
   "funding_url": "https://github.com/kreier/solar",
   "new_install_prompt_erase": true,
   "builds": [
@@ -20,7 +20,7 @@
           "offset": 57344
         },
         {
-          "path": "firmware/firmware-esp32-v1.1.5.bin",
+          "path": "firmware/firmware-esp32-v1.1.12.bin",
           "offset": 65536
         }
       ]
@@ -41,7 +41,7 @@
           "offset": 57344
         },
         {
-          "path": "firmware/firmware-esp32s3-v1.1.5.bin",
+          "path": "firmware/firmware-esp32s3-v1.1.12.bin",
           "offset": 65536
         }
       ]
@@ -62,7 +62,7 @@
           "offset": 57344
         },
         {
-          "path": "firmware/firmware-esp32c5-v1.1.5.bin",
+          "path": "firmware/firmware-esp32c5-v1.1.12.bin",
           "offset": 65536
         }
       ]
@@ -83,7 +83,7 @@
           "offset": 57344
         },
         {
-          "path": "firmware/firmware-esp32c5-v1.1.5.bin",
+          "path": "firmware/firmware-esp32c5-v1.1.12.bin",
           "offset": 65536
         }
       ]

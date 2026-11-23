@@ -224,6 +224,7 @@ public:
         doc["boot_count"] = timer.getBootCount();
         doc["power_mode"] = config.power_mode;
         doc["is_canary"] = config.is_canary ? 1 : 0;
+        doc["uptime_s"] = getRtcUptimeSeconds();
 
         // Measurement readings
         doc["solar_mv"] = readings.solar_mv;
